@@ -36,7 +36,7 @@ const MAX_ITERATIONS = 10;
 // the bind-mounted Windows worktree as a Git safe.directory before the agent
 // starts; without it, Git rejects the root-owned Docker Desktop mount.
 const hooks = {
-  sandbox: { onSandboxReady: [{ command: "git status --short" }] },
+  sandbox: { onSandboxReady: [{ command: "git config core.autocrlf true" }] },
 };
 
 // ---------------------------------------------------------------------------
