@@ -1,10 +1,10 @@
 // Sequential Reviewer — implement-then-review loop
 //
 // This template drives a two-phase workflow per issue:
-//   Phase 1 (Implement): A sonnet agent picks an open issue, works on it
+//   Phase 1 (Implement): A Codex agent picks an open issue, works on it
 //                        on a dedicated branch, commits the changes, and signals
 //                        completion.
-//   Phase 2 (Review):    A second sonnet agent reviews the branch diff and either
+//   Phase 2 (Review):    A second Codex agent reviews the branch diff and either
 //                        approves it or makes corrections directly on the branch.
 //
 // Both phases share a single sandbox created via createSandbox(), so the
@@ -32,9 +32,9 @@ import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 // Each cycle works on one issue. Raise this to process more issues per run.
 const MAX_ITERATIONS = 10;
 
-// Keep one lightweight sandbox hook. Sandcastle uses the hook path to mark
-// the bind-mounted Windows worktree as a Git safe.directory before the agent
-// starts; without it, Git rejects the root-owned Docker Desktop mount.
+// Normalize checkout line endings inside the Linux container. The repository
+// is hosted on Windows, and without this setting the bind-mounted worktree can
+// appear to have every tracked file modified before the agent starts.
 const hooks = {
   sandbox: { onSandboxReady: [{ command: "git config core.autocrlf true" }] },
 };
@@ -61,7 +61,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     // -----------------------------------------------------------------------
     // Phase 1: Implement
     //
-    // A sonnet agent picks the next open issue, writes the
+    // A Codex agent picks the next open issue, writes the
     // implementation (using RGR: Red → Green → Repeat → Refactor), and
     // commits the result.
     //
@@ -91,7 +91,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     // -----------------------------------------------------------------------
     // Phase 2: Review
     //
-    // A second sonnet agent reviews the diff of the branch produced by
+    // A second Codex agent reviews the diff of the branch produced by
     // Phase 1. It uses the {{BRANCH}} prompt argument to inspect the right
     // branch, and either approves or makes corrections directly on the branch.
     // -----------------------------------------------------------------------
