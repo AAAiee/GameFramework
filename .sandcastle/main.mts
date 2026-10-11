@@ -53,7 +53,18 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   // This gives both agents a real, named branch that persists across phases.
   const sandbox = await sandcastle.createSandbox({
     branch,
-    sandbox: docker(),
+    sandbox: docker({
+      imageName: "sandcastle:editor",
+      // Use a dedicated, ignored Codex login for ChatGPT-plan authentication.
+      // Do not mount the host's normal ~/.codex directory: it also contains
+      // unrelated sessions, settings, and credentials.
+      mounts: [
+        {
+          hostPath: ".sandcastle/codex-home",
+          sandboxPath: "/home/agent/.codex",
+        },
+      ],
+    }),
     hooks,
   });
 
@@ -74,7 +85,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     const implement = await sandbox.run({
       name: "implementer",
       maxIterations: 1,
-      agent: sandcastle.codex("gpt-5.4"),
+      agent: sandcastle.codex("gpt-6.1-sol"),
       promptFile: "./.sandcastle/implement-prompt.md",
     });
 
@@ -98,7 +109,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     await sandbox.run({
       name: "reviewer",
       maxIterations: 1,
-      agent: sandcastle.codex("gpt-5.4"),
+      agent: sandcastle.codex("gpt-6.1-sol"),
       promptFile: "./.sandcastle/review-prompt.md",
       promptArgs: {
         BRANCH: branch,
