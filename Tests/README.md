@@ -32,6 +32,14 @@ requires a Windows desktop and OpenGL driver; it does not cover dialogs or the
 later editor defect tickets. It is a genuine editor fixture, not automation of
 menu clicks in Editor.exe.
 
+After each observed panel dimension change, the fixture waits for two subsequent
+Application frame dispatches before checking the camera against the framebuffer's
+integer pixel aspect ratio. EventManager first promotes newly queued events, then
+delivers them on the next dispatch; multiple fixed updates in one frame do not
+advance that queue. The camera assertion still fails if WindowSystem does not
+deliver the resize. The existing frame bound and script timeout also fail if the
+viewport never settles.
+
 The host check accepts the configuration output root (containing `Regression/`),
 its parent (containing `Debug/` and `Release/`), or `Binaries/`:
 
@@ -174,3 +182,25 @@ A Linux `g++ -std=c++20 -fsyntax-only` attempt with the supplied dependency incl
 paths failed on existing MSVC numeric literal suffixes and dormant FSM template
 syntax. No portability or dormant-system corrections were made. PowerShell is
 not installed here, so the Windows script also awaits host execution.
+
+## Windows attempt 1 and bounded repair
+
+Host validation of `180f91b74fb98b2c5d35fb5f817d7e8e72c889ef` generated
+the solution and completed the fresh Windows x64 Debug solution Rebuild with
+exit 0 using the exact Premake and Debug MSBuild commands above. From
+`C:\FinalPolishedProjects\Editor-validate-12\Binaries\windows-x86_64\Debug\Regression`,
+the host ran `.\Regression.exe` with no arguments. It printed `PASS: scene-hooks`
+but exited 1 in the editor fixture with
+`Installed WindowSystem did not deliver the camera viewport resize`.
+The log showed delivery of 1600x900 and 1600x852 camera events before failure.
+Evidence is in the host's
+`.sandcastle\logs\spec-11\issue-12-180f91b74fb98b2c5d35fb5f817d7e8e72c889ef-attempt-1`
+directory (`build-Debug.log` and `regression-all-Debug.log`).
+
+The fixture previously asserted immediately after an update could enqueue a new
+resize, before the two required frame dispatches. This repair waits those frames
+after the latest observed viewport change, preserving the framebuffer, rendering
+and camera assertions and both selectors. It changes no production event or
+viewport behavior. Local `git diff --check` passed; the repaired runtime and fresh
+Windows Debug/Release builds remain pending host validation. Attempt 1 stopped
+at the Debug suite failure, so it supplies no Release or Windows-script pass.

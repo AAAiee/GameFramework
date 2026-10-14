@@ -29,12 +29,20 @@ namespace Rubber {
             m_Entity.addComponent<CameraComponent>().isPrimary = true;
         }
 
+        /** Waits two application frame dispatches after the latest viewport change.
+         * Fixed updates can repeat within a frame; they do not advance event delivery.
+         */
         void onUpdate(float ts) override {
             if (m_Completed) {
                 return;
             }
             EditorLayer::onUpdate(ts);
-            if (m_Frames >= 3 && m_ViewPortDimension.x > 0 && m_ViewPortDimension.y > 0) {
+            if (m_ViewPortDimension != m_LastViewportDimension) {
+                m_LastViewportDimension = m_ViewPortDimension;
+                m_ViewportChangedFrame = m_Frames;
+            }
+            if (m_Frames >= 3 && m_Frames - m_ViewportChangedFrame >= 2
+                && m_ViewPortDimension.x > 0 && m_ViewPortDimension.y > 0) {
                 const auto& spec = m_FrameBuffer->getSpecification();
                 require(spec.m_Width == static_cast<uint32_t>(m_ViewPortDimension.x)
                     && spec.m_Height == static_cast<uint32_t>(m_ViewPortDimension.y),
@@ -43,7 +51,7 @@ namespace Rubber {
                 const auto& projection = m_Entity.getComponent<CameraComponent>().camera.getProjection();
                 const float ratio = projection[1][1] / projection[0][0];
                 require(std::isfinite(ratio) && std::abs(ratio
-                    - m_ViewPortDimension.x / m_ViewPortDimension.y) < 0.01f,
+                    - static_cast<float>(spec.m_Width) / static_cast<float>(spec.m_Height)) < 0.01f,
                     "Installed WindowSystem did not deliver the camera viewport resize");
                 m_Entity.getComponent<TagComponent>().tag = "edited entity";
                 require(m_Entity.getComponent<TagComponent>().tag == "edited entity",
@@ -79,6 +87,8 @@ namespace Rubber {
 
     private:
         Entity m_Entity;
+        glm::vec2 m_LastViewportDimension = { 0.0f, 0.0f };
+        unsigned m_ViewportChangedFrame = 0;
         unsigned m_Frames = 0;
         bool m_Completed = false;
     };
