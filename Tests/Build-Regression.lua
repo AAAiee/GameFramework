@@ -4,9 +4,16 @@ project "Regression"
     cppdialect "C++20"
     staticruntime "on"
 
-    files { "src/**.h", "src/**.cpp" }
+    files {
+        "src/**.h", "src/**.cpp",
+        "../Editor/src/EditorLayer.cpp",
+        "../Editor/src/Panels/SceneHierachyPanel.cpp",
+        "../Editor/src/Utilities/FontsManager/FontManager.cpp"
+    }
     includedirs {
         "../Engine/Source",
+        "../Editor/src",
+        "../Engine/RBVendor/imGui",
         "../Engine/RBVendor/spdlogs/include",
         "../Engine/RBVendor/glm",
         "../Engine/RBVendor/entt/include",
@@ -17,7 +24,8 @@ project "Regression"
     targetdir ("../Binaries/" .. OutputDir .. "/%{prj.name}")
     objdir ("../Binaries/Intermediates/" .. OutputDir .. "/%{prj.name}")
     postbuildcommands {
-        "{COPY} \"../Editor/assets\" \"%{cfg.targetdir}/assets\""
+        "{COPY} \"../Editor/assets\" \"%{cfg.targetdir}/assets\"",
+        "{COPY} \"../Editor/imgui.ini\" \"%{cfg.targetdir}/\""
     }
 
     filter "system:windows"

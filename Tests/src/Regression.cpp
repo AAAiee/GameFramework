@@ -1,12 +1,15 @@
 #include "pch.h"
 #include "Rubber/Core/Application.h"
 #include "Rubber/Event/EventManager.h"
+#include "Rubber/Event/AppEvent.h"
+#include <cmath>
 #include "Rubber/Scene/Scene.h"
 #include "Rubber/Scene/Utili/Entity.h"
 #include "Rubber/Scene/Utili/Component.h"
 #include "Rubber/Window/Window.h"
 #include <GLFW/glfw3.h>
 #include <stdexcept>
+#include "EditorIssue12Fixture.h"
 
 namespace {
     void require(bool condition, const char* message) {
@@ -34,6 +37,15 @@ namespace {
         checkComponent<Rubber::TagComponent>(entity, "replacement");
         checkComponent<Rubber::TransformComponent>(entity);
         checkComponent<Rubber::SpriteComponent>(entity);
+        scene->updatesViewportSize({ 640.0f, 480.0f });
+        auto& camera = entity.addComponent<Rubber::CameraComponent>();
+        Rubber::Application::getEventManager()->dispatchAllEvents();
+        Rubber::Application::getEventManager()->dispatchAllEvents();
+        const auto& projection = camera.camera.getProjection();
+        require(std::abs(projection[1][1] / projection[0][0] - 640.0f / 480.0f) < 0.001f,
+            "Camera construction hook did not deliver the stored viewport");
+        entity.removeComponent<Rubber::CameraComponent>();
+        require(!entity.hasComponent<Rubber::CameraComponent>(), "Camera removal did not reach the registry");
         checkComponent<Rubber::CameraComponent>(entity);
         checkComponent<Rubber::VisibilityControlComponent>(entity);
         Rubber::Application::getEventManager()->dispatchAllEvents();
@@ -45,16 +57,22 @@ namespace {
 }
 
 int main(int argc, char** argv) {
-    if (argc > 2 || (argc == 2 && std::string_view(argv[1]) != "scene-hooks")) {
-        std::cerr << "Usage: Regression.exe [scene-hooks]\n";
+    if (argc > 2 || (argc == 2 && (std::string_view(argv[1]) != "scene-hooks" && std::string_view(argv[1]) != "editor-issue-12"))) {
+        std::cerr << "Usage: Regression.exe [scene-hooks|editor-issue-12]\n";
         return 2;
     }
     try {
         Rubber::Logger::Init();
         Rubber::Application application("Rubber regression");
         glfwHideWindow(static_cast<GLFWwindow*>(Rubber::Application::getWindow().getNativeWindow()));
-        checkSceneHooks();
-        std::cout << "PASS: scene-hooks\n";
+        if (argc == 1 || std::string_view(argv[1]) == "scene-hooks") {
+            checkSceneHooks();
+            std::cout << "PASS: scene-hooks\n";
+        }
+        if (argc == 1 || std::string_view(argv[1]) == "editor-issue-12") {
+            Rubber::checkEditorIssue12(application);
+            std::cout << "PASS: editor-issue-12\n";
+        }
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "FAIL: " << error.what() << '\n';

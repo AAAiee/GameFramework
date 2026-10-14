@@ -24,6 +24,9 @@ namespace Rubber {
 		void onUpdate(const float ts) override;
 		void onImGuiRender() override;
 
+        /** Grants the first-party runtime fixture access to the active editor scene. */
+        friend class EditorIssue12Fixture;
+
 	private:
 		void newScene();
 		void openScene();

@@ -46,10 +46,16 @@ namespace Rubber {
 
 	private:
 		Scene();
-		/** Runs before registry insertion; only explicitly specialized types are supported. */
+		/** Runs before registry insertion; only explicitly specialized types are supported.
+         * Primary definitions live in Scene.cpp; unsupported types instantiated
+         * elsewhere may fail at link time rather than produce the dependent assertion.
+         */
 		template<typename T>
 		void onComponentConstruct(Entity ent);
-		/** Runs before registry removal; only explicitly specialized types are supported. */
+		/** Runs before registry removal; only explicitly specialized types are supported.
+         * Primary definitions live in Scene.cpp; unsupported types instantiated
+         * elsewhere may fail at link time rather than produce the dependent assertion.
+         */
 		template<typename T>
 		void onComponentDelete(Entity ent);
 	public:  

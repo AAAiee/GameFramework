@@ -2,7 +2,9 @@
 
 `Regression` links the production Engine with C++20 and the existing Premake/MSVC
 configuration. Run `Regression.exe` for all checks, or `Regression.exe scene-hooks`
-for F01. Failures use exceptions and a nonzero exit status rather than `assert`,
+for the hook check. `Regression.exe editor-issue-12` runs the genuine editor
+fixture. No arguments run both checks in sequence using one Application. Failures
+use exceptions and a nonzero exit status rather than `assert`,
 so checks remain active in Release. An unknown selector exits with status 2.
 
 The F01 check creates one real Application and one Scene, then instantiates
@@ -14,6 +16,35 @@ run loop is needed. The Application creates a real GL context and initializes
 Renderer2D; its window is hidden after construction. A Windows desktop with a
 compatible OpenGL driver is required. Scene destruction precedes Application
 destruction. The existing process/renderer teardown limitations are unchanged.
+
+## Editor runtime fixture
+
+The `editor-issue-12` selector compiles the production EditorLayer, hierarchy panel
+and FontManager into Regression. It runs Application's real window/event/ImGui
+loop and EditorLayer's actual attachment, scene update, framebuffer and panel
+rendering paths. A narrow friend declaration exposes the active scene to the
+fixture without adding a public editor API. It creates a tagged entity with
+Transform, Sprite, Camera and VisibilityControl, waits for real panel frames and
+fixed updates, checks a rendered quad and matching framebuffer/camera viewport,
+then edits the tag, removes all five components and deletes the entity. All
+oracles throw in Release too. Closing before completion fails. This F01 fixture
+requires a Windows desktop and OpenGL driver; it does not cover dialogs or the
+later editor defect tickets. It is a genuine editor fixture, not automation of
+menu clicks in Editor.exe.
+
+The host check accepts the configuration output root (containing `Regression/`),
+its parent (containing `Debug/` and `Release/`), or `Binaries/`:
+
+```powershell
+& '.\Tests\Windows\issue-12.ps1' -Configuration Debug -BinaryRoot "$PWD\Binaries\windows-x86_64\Debug"
+& '.\Tests\Windows\issue-12.ps1' -Configuration Release -BinaryRoot "$PWD\Binaries\windows-x86_64\Release"
+```
+
+Premake copies the production editor assets and `imgui.ini` layout to Regression.
+The script runs from the executable output directory, where assets and working
+files reside. It captures stdout/stderr there, enforces a 60 second timeout,
+checks exit 0 and the fixture's completed-assertion marker, and closes only the
+process it started. Successful output is `PASS: editor-issue-12`.
 
 ## Windows validation commands
 
@@ -69,10 +100,11 @@ the Editor from its output directory in both configurations; create an entity,
 add/remove Transform, Sprite, Camera and Visibility controls through the existing
 UI where offered, and verify ordinary scene editing. Tag add/remove is exercised
 by the regression executable because the editor expects every entity to have a tag.
-Record actual commands, exit codes and observations on issue #12. Do not infer
+The Windows host records actual commands, exit codes and observations on
+issue #12. Do not infer
 runtime success from source inspection or project generation.
 
-## Evidence for this iteration
+## Evidence from the initial repair
 
 The Linux checkout initially contained both unconditional `static_assert(false)`
 primary hooks and no regression target. The regression was written before the
@@ -116,3 +148,29 @@ subscriptions. Keep one Scene alive at a time in these fixtures. Independent
 scene viewports, entity validity/foreign-scene removal, native script ownership,
 dormant-system defects and application/static-facility teardown remain excluded
 by the [parent specification](https://github.com/AAAiee/GameFramework/issues/11#issuecomment-6151488433).
+
+## Assigned-task follow-up evidence
+
+The assigned branch was clean at inspection and already contained the reviewed
+F01 repair (20d4d0e) and API documentation review (73f464e). The dependent
+assertions and supported specializations have been retained. This follow-up adds
+the required Windows script and real editor fixture, strengthens camera-hook
+runtime checking, and keeps the `scene-hooks` selector available. Local inputs
+were reused from `/opt/editor-dependencies` and `/opt/editor-local-docs`;
+dependency downloads and vendor edits are unnecessary.
+
+Windows x64 Debug/Release Rebuild and both runtime selectors are **pending host
+execution**. No successful Windows build or runtime result is claimed by this
+Linux implementation. Use the exact Rebuild and script commands above for that
+gate; the earlier Debug-only experiment remains insufficient.
+
+Follow-up local checks: `git diff --check` passed. In an isolated temporary copy
+with the supplied dependency snapshots, running
+`Vendor/Binaries/Premake/Linux/premake5 --file=Build.lua --os=windows vs2022`
+exited 0. The generated Regression project contains both x64 configurations,
+C++20, the fixture and all three production editor source files. Generated files
+remain outside this checkout. This validates generation only, not MSVC builds.
+A Linux `g++ -std=c++20 -fsyntax-only` attempt with the supplied dependency include
+paths failed on existing MSVC numeric literal suffixes and dormant FSM template
+syntax. No portability or dormant-system corrections were made. PowerShell is
+not installed here, so the Windows script also awaits host execution.
