@@ -89,21 +89,19 @@ namespace Rubber {
 	template<typename T>
 	void Rubber::Scene::onComponentConstruct(Entity ent)
 	{
-		static_assert(false);
+		static_assert(!std::is_same_v<T, T>, "Unsupported scene component construction");
 	}
 
 
 	template<>
 	void Rubber::Scene::onComponentConstruct<TagComponent>(Entity ent)
 	{
-		// do something
 	}
 
 
 	template<>
 	void Rubber::Scene::onComponentConstruct<SpriteComponent>(Entity ent)
 	{
-		// do something
 	}
 
 	template<>
@@ -127,32 +125,28 @@ namespace Rubber {
 	template<typename T>
 	void Scene::onComponentDelete(Entity ent)
 	{
-		static_assert(false);
+		static_assert(!std::is_same_v<T, T>, "Unsupported scene component deletion");
 	}
 
 	template<>
 	void Rubber::Scene::onComponentDelete<TagComponent>(Entity ent)
 	{
-		// do something
 	}
 
 
 	template<>
 	void Rubber::Scene::onComponentDelete<SpriteComponent>(Entity ent)
 	{
-		// do something
 	}
 
 	template<>
 	void Rubber::Scene::onComponentDelete<TransformComponent>(Entity ent)
 	{
-		// do something
 	}
 
 	template<>
 	void Rubber::Scene::onComponentDelete<VisibilityControlComponent>(Entity ent)
 	{
-		// do something
 	}
 
 	template<>

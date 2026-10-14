@@ -5,11 +5,18 @@
 
 namespace Rubber{
 
+    /**
+     * Borrows a scene and a registry handle; copying does not extend scene or
+     * component lifetime. Use only while the scene and handle remain valid.
+     * Boolean conversion tests stored values, not registry validity.
+     */
 	class Entity {
 	public:
 		Entity() = default;
+        /** Borrows activeScence; entity must belong to that scene's registry. */
 		Entity(entt::entity entity, Scene*  activeScence);
 
+        /** Tests component presence in a live scene; invalid registry handles return false. */
 		template<typename T>
 		bool hasComponent(){
 			RB_CORE_ASSERT(m_Scene, "Entity must live in a valid scene!");
@@ -19,6 +26,11 @@ namespace Rubber{
 		}
 
 
+        /**
+         * Forwards args into a supported component after its construction hook.
+         * Requires a live handle and absent T; returns a registry-owned reference
+         * invalidated by removal, scene destruction or component storage relocation.
+         */
 		template <typename T, typename... Args>
 		T& addComponent(Args&&... args){
 			RB_CORE_ASSERT(m_Scene, "Entity must live in a valid scene!");
@@ -27,6 +39,7 @@ namespace Rubber{
 		}
 
 
+        /** Removes supported T after its deletion hook; requires a live handle containing T. */
 		template <typename T>
 		void removeComponent(){
 			RB_CORE_ASSERT(m_Scene, "Entity must live in a valid scene!");
@@ -35,12 +48,14 @@ namespace Rubber{
 		}
 
 
+        /** Returns a borrowed component; requires a live handle containing T. */
 		template<typename T>
 		T& getComponent(){
 			RB_CORE_ASSERT(m_Scene, "Entity must live in a valid scene");
 			return m_Scene->m_Registry.get<T>(m_EntityHandler);
 		}
 
+        /** Returns the borrowed scene pointer; does not extend its lifetime. */
 		Scene* getScene() {
 			return m_Scene;
 		}

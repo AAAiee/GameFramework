@@ -1,4 +1,5 @@
 #pragma once  
+#include "Rubber/Core/Utility.h"
 #include "Rubber/Scene/System/System.h"
 
 #include <entt.hpp>
@@ -12,26 +13,52 @@ namespace Rubber {
 	class SceneHierachyPanel;
 	class Entity;
 
+    /**
+     * Owns the entity registry and installed systems. Construction initializes
+     * WindowSystem, then RendererSystem; shutdown uses that same order.
+     * Requires a live Application, event manager, logger and current GL context.
+     * Destroy the scene before those facilities. Other scene systems are dormant.
+     * WindowSystem uses a shared subscription name, so simultaneous scenes do
+     * not have independent viewport delivery.
+     */
 	class Scene {  
 	public:
+        /** Creates an entity with an owned tag; an empty tag becomes "Unknown Entity". */
 		Entity createEntity(std::string_view tag="");  
+        /** Destroys a valid entity from this scene; borrowed entity/component views expire. */
 		void removeEntity(Entity entity);
+        /** Returns this scene's borrowed registry; direct mutations bypass component hooks. */
 		entt::registry& getRegistry();
+        /** Stores viewport dimensions in pixels; callers must supply positive usable sizes. */
 		void updatesViewportSize(glm::vec2 dimensions);
+        /** Queues the stored pixel dimensions for WindowSystem; delivery is deferred. */
 		void publishViewportResize();
+        /** Shuts down and destroys owned systems before the registry is destroyed. */
 		~Scene();
+        /** Updates installed systems in insertion order; ts is elapsed seconds. */
 		void onSceneUpdate(float ts);
+        /** Installs and initializes WindowSystem then RendererSystem; do not call twice. */
 	    void systemsInit();
+        /** Shuts down installed systems in insertion order and releases their ownership. */
 	    void systemShutDown();
+        /** Calls onUpdate(ts) on initialized systems in insertion order; ts is seconds. */
 	    void onSystemsUpdate(float ts);
 
 	private:
 		Scene();
+        /**
+         * Runs before registry insertion. Primary definitions live in Scene.cpp
+         * and fail dependently for unsupported T if instantiated there. External
+         * unsupported uses can instead fail at link time because the definition
+         * is not header-visible. Only the existing explicit hooks are supported.
+         */
 		template<typename T>
 		void onComponentConstruct(Entity ent);
+        /** Runs before removal, with the same supported-type limitation as construction. */
 		template<typename T>
 		void onComponentDelete(Entity ent);
 	public:  
+        /** Returns shared ownership of a scene with its systems already initialized. */
 		static Ref<Scene> create();  
 
 	private:  
