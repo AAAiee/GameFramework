@@ -29,7 +29,7 @@ namespace Rubber {
 		void removeEntity(Entity entity);
         /** Returns this scene's borrowed registry; direct mutations bypass component hooks. */
 		entt::registry& getRegistry();
-        /** Stores viewport dimensions in pixels; callers must supply positive usable sizes. */
+		/** Stores viewport dimensions in pixels; their product must be positive. */
 		void updatesViewportSize(glm::vec2 dimensions);
         /** Queues the stored pixel dimensions for WindowSystem; delivery is deferred. */
 		void publishViewportResize();
@@ -46,15 +46,10 @@ namespace Rubber {
 
 	private:
 		Scene();
-        /**
-         * Runs before registry insertion. Primary definitions live in Scene.cpp
-         * and fail dependently for unsupported T if instantiated there. External
-         * unsupported uses can instead fail at link time because the definition
-         * is not header-visible. Only the existing explicit hooks are supported.
-         */
+		/** Runs before registry insertion; only explicitly specialized types are supported. */
 		template<typename T>
 		void onComponentConstruct(Entity ent);
-        /** Runs before removal, with the same supported-type limitation as construction. */
+		/** Runs before registry removal; only explicitly specialized types are supported. */
 		template<typename T>
 		void onComponentDelete(Entity ent);
 	public:  

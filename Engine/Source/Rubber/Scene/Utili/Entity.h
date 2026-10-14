@@ -13,8 +13,8 @@ namespace Rubber{
 	class Entity {
 	public:
 		Entity() = default;
-        /** Borrows activeScence; entity must belong to that scene's registry. */
-		Entity(entt::entity entity, Scene*  activeScence);
+		/** Borrows activeScene; entity must belong to that scene's registry. */
+		Entity(entt::entity entity, Scene* activeScene);
 
         /** Tests component presence in a live scene; invalid registry handles return false. */
 		template<typename T>
@@ -26,11 +26,7 @@ namespace Rubber{
 		}
 
 
-        /**
-         * Forwards args into a supported component after its construction hook.
-         * Requires a live handle and absent T; returns a registry-owned reference
-         * invalidated by removal, scene destruction or component storage relocation.
-         */
+		/** Runs the construction hook, then adds T and returns a borrowed reference. */
 		template <typename T, typename... Args>
 		T& addComponent(Args&&... args){
 			RB_CORE_ASSERT(m_Scene, "Entity must live in a valid scene!");
@@ -39,7 +35,7 @@ namespace Rubber{
 		}
 
 
-        /** Removes supported T after its deletion hook; requires a live handle containing T. */
+		/** Runs the deletion hook, then removes T; requires a live handle containing T. */
 		template <typename T>
 		void removeComponent(){
 			RB_CORE_ASSERT(m_Scene, "Entity must live in a valid scene!");
