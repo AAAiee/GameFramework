@@ -11,6 +11,12 @@ namespace Rubber{
 		bool m_SwapChainTarget = false;
 	}; 
 
+    /** Owns GL attachments; creation, use and destruction require a current GL context.
+     * bind selects this target and sets the GL viewport to its pixel dimensions.
+     * unbind selects framebuffer 0; it does not restore a prior binding or viewport.
+     * resize requires positive pixels and recreates attachments even for equal sizes.
+     * Previously borrowed attachment IDs become invalid; reacquire them after resize.
+     */
 	class FrameBuffer{
 	public:
 		virtual ~FrameBuffer() {};

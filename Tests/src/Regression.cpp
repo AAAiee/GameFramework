@@ -14,6 +14,7 @@
 #include "RendererBatchesCheck.h"
 #include "EditorIssue15Fixture.h"
 #include "EntityTagsCheck.h"
+#include "ViewportPixelsCheck.h"
 #include <windows.h>
 
 namespace {
@@ -85,8 +86,8 @@ namespace {
 }
 
 int main(int argc, char** argv) {
-    if (argc > 2 || (argc == 2 && (std::string_view(argv[1]) != "scene-hooks" && std::string_view(argv[1]) != "editor-issue-12" && std::string_view(argv[1]) != "camera-inverse" && std::string_view(argv[1]) != "renderer-batches" && std::string_view(argv[1]) != "editor-issue-15" && std::string_view(argv[1]) != "entity-tags" && std::string_view(argv[1]) != "editor-issue-16"))) {
-        std::cerr << "Usage: Regression.exe [scene-hooks|editor-issue-12|camera-inverse|renderer-batches|editor-issue-15|entity-tags|editor-issue-16]\n";
+    if (argc > 2 || (argc == 2 && (std::string_view(argv[1]) != "scene-hooks" && std::string_view(argv[1]) != "editor-issue-12" && std::string_view(argv[1]) != "camera-inverse" && std::string_view(argv[1]) != "renderer-batches" && std::string_view(argv[1]) != "editor-issue-15" && std::string_view(argv[1]) != "entity-tags" && std::string_view(argv[1]) != "editor-issue-16" && std::string_view(argv[1]) != "viewport-pixels" && std::string_view(argv[1]) != "editor-issue-17"))) {
+        std::cerr << "Usage: Regression.exe [scene-hooks|editor-issue-12|camera-inverse|renderer-batches|editor-issue-15|entity-tags|editor-issue-16|viewport-pixels|editor-issue-17]\n";
         return 2;
     }
     try {
@@ -128,6 +129,12 @@ int main(int argc, char** argv) {
         if (argc == 1 || std::string_view(argv[1]) == "editor-issue-15") {
             Rubber::checkEditorIssue15();
             std::cout << "PASS: editor-issue-15\n";
+        }
+        if (argc == 1 || std::string_view(argv[1]) == "viewport-pixels" || std::string_view(argv[1]) == "editor-issue-17") {
+            Rubber::checkViewportPixels();
+            std::cout << "PASS: viewport-pixels\n";
+            if (argc == 1 || std::string_view(argv[1]) == "editor-issue-17")
+                std::cout << "PASS: editor-issue-17\n";
         }
         return 0;
     } catch (const std::exception& error) {

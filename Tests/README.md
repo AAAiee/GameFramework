@@ -616,3 +616,86 @@ adding suffix operators and those two keywords allowed syntax checks of the new
 fixture and changed production panel to exit 0. These accommodations are absent
 from the committed sources. This is syntax/generation evidence, not an MSVC build
 or a runtime observation. PowerShell and Windows/MSVC are unavailable here.
+
+## Usable viewport pixels (F06 / issue #17)
+
+`viewport-pixels` runs the production EditorLayer with real OpenGL attachments,
+its scene/WindowSystem, the two-stage EventManager queue and production ImGui
+backends. `editor-issue-17` runs the same checks and emits the Windows acceptance
+marker. No arguments include these checks alongside every earlier selector.
+Exceptions keep all assertions active in Debug and Release.
+
+The friend fixture injects exact sampled panel sizes at the layout/update boundary
+so OS window-coordinate rounding cannot hide fractional or negative inputs. Eight
+updates at 800.5 by 600.5 must retain all framebuffer/attachment IDs and a texture
+parameter sentinel (detecting recreation even if GL reuses names), publish exactly
+one 800x600 event and give the camera that aspect ratio after two dispatch calls.
+Zero in either axis, negative axes, negative pairs, subpixel-to-zero, NaN and
+infinity must retain that target/projection without publishing events. A change
+to 801.75 by 603.25 must yield 801x603 framebuffer specification, actual GL texture
+storage, complete framebuffer, event and camera framing. Adding another camera
+checks Scene's retained pixel dimensions. Rendering actual editor panels checks
+exact restoration of a nondefault 137.25 WindowMinSize.x with docking both disabled
+and enabled. The fixture refreshes the real backend font texture after editor
+attachment adds fonts to the full suite's shared atlas.
+
+The existing isolated native-dialog driver also exercises real New/Open at
+fractional, zero, negative and subpixel-to-zero extents. A serialized camera is
+opened through the production dialog and serializer each time. Both New camera
+construction and Open deserialization must queue exactly the expected positive
+pixels and produce a finite matching projection. Invalid panel sizes fall back
+to the last usable framebuffer dimensions (811x607 in this check). Dialog timeouts,
+filename entry and submission assertions remain mandatory. Files are created only
+under a process-specific issue-17 directory in the executable output directory.
+The private desktop is mandatory; no input desktop is switched or user action
+required. These are automated observations, not manual observations.
+
+EditorLayer's Application ordering is window update, event dispatch, zero or more
+fixed scene updates, then ImGui rendering. Each update consumes the preceding
+ImGui panel sample. Positive dimensions are truncated once to integer pixels
+before comparison, and those pixels feed resize, event publication and scene
+storage. Invalid samples retain the render target. New/Open use the same conversion
+or the current usable framebuffer size before camera construction/deserialization.
+Scene storage supplies later camera hooks; existing cameras follow deferred
+WindowSystem delivery, respecting fixed aspect ratio. Two dispatches are needed
+for a newly enqueued event. Resize events remain shared and do not identify a
+scene; independent simultaneous scene viewport support is excluded.
+
+Framebuffer bind selects the target and sets the GL viewport. Unbind selects
+framebuffer 0 and leaves the viewport dimensions in place; it does not restore
+a previous binding/viewport. Resize recreates attachments, invalidating borrowed
+attachment IDs, even at an unchanged size if called directly. EditorLayer avoids
+that call for unchanged integer pixels and reacquires the image attachment ID
+on each ImGui render. The image explicitly constructs ImVec2 from panel extents.
+
+After regenerating and rebuilding the existing x64 C++20 solution in both builds,
+run all configured selectors (`scene-hooks`, `camera-inverse`, `renderer-batches`,
+`entity-tags`, `viewport-pixels`), the complete no-argument suite, and:
+
+```powershell
+& '.\Tests\Windows\issue-17.ps1' -Configuration Debug -BinaryRoot "$PWD\Binaries\windows-x86_64\Debug"
+& '.\Tests\Windows\issue-17.ps1' -Configuration Release -BinaryRoot "$PWD\Binaries\windows-x86_64\Release"
+```
+
+The script requires exit 0 and `PASS: editor-issue-17` after all assertions,
+retains issue-17 stdout/stderr logs in the output folder, bounds execution to
+240 seconds and closes only its own process. The runtime fixture prints OBSERVED
+lines only after the corresponding behavioral assertions pass.
+
+F06 runtime evidence: Windows/MSVC Debug and Release builds, Regression execution,
+PowerShell execution and fractional/zero-size editor observations are pending the
+Windows host. This Linux container cannot run authoritative Windows acceptance;
+no runtime observation or acceptance pass is claimed for this change.
+
+Local F06 verification: `git diff --check` passed. Premake Windows VS2022 generation
+in an isolated temporary copy using the supplied dependency snapshots exited 0;
+Regression includes ViewportPixelsCheck and retains C++20 Debug/Release settings.
+GCC C++20 syntax checks of the changed EditorLayer and new ViewportPixelsCheck
+passed with `-O0 -g -DRB_DEBUG -DRB_ENABLE_ASSERTS` and `-O2 -DNDEBUG -DRELEASE`.
+The temporary copy reuses the prior MSVC integer-suffix adapter and dormant FSM
+`template` keyword accommodations. Debug syntax checking additionally defines
+RB_PLATFORM_WINDOWS and maps `__debugbreak` to `__builtin_trap`; it does not include
+the Windows SDK. Initial Debug attempts without those platform accommodations
+failed in existing Core.h. These are syntax/generation checks only. The Windows-only
+native-dialog extension and PowerShell entry have not been compiled or run here.
+No compatibility edits or generated projects are included in the patch.

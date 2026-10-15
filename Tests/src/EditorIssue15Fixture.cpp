@@ -1,5 +1,7 @@
 #include "pch.h"
 #include "EditorIssue15Fixture.h"
+#include "ViewportPixelsCheck.h"
+#include <cmath>
 #include "EditorLayer.h"
 #include "Rubber/Window/Window.h"
 #include "Rubber/imGui/ImGuiLayer.h"
@@ -314,6 +316,62 @@ namespace Rubber {
             drainEvents();
         }
 
+        void runViewportInitialization() {
+            onAttach();
+            try {
+                const auto root = std::filesystem::current_path()
+                    / ("issue-17-work-" + std::to_string(GetCurrentProcessId()));
+                require(!std::filesystem::exists(root), "Viewport working directory already exists");
+                std::filesystem::create_directory(root);
+                const auto file = root / "viewport.rubber";
+                auto initial = m_ActiveScene->createEntity("F06 open camera");
+                initial.addComponent<CameraComponent>();
+                SceneSerializer(m_ActiveScene).serialize(file);
+                drainEvents();
+                unsigned events = 0;
+                glm::uvec2 delivered{};
+                const auto em = Application::getEventManager();
+                em->subscribe<ViewPortResizeEvent>("F06 initialization observer", [&](const ViewPortResizeEvent& e) {
+                    ++events;
+                    delivered = {e.getWidth(), e.getHeight()};
+                    require(delivered.x > 0 && delivered.y > 0, "New/Open published unusable pixels");
+                    return false;
+                });
+                // Render target is deliberately different from Scene's default 1600x900.
+                m_FrameBuffer->resize(811, 607);
+                for (const auto size : {glm::vec2(800.5f,600.5f), glm::vec2(0,0),
+                    glm::vec2(-2,600), glm::vec2(-2,-3), glm::vec2(0.5f,600), glm::vec2(800,0.5f)}) {
+                    m_ViewPortDimension = size;
+                    const glm::uvec2 expected = size.x >= 1 && size.y >= 1
+                        ? glm::uvec2(800,600) : glm::uvec2(811,607);
+                    const auto verify = [&] {
+                        drainEvents();
+                        require(events == 1 && delivered == expected, "New/Open did not retain usable pixel dimensions");
+                        const auto& p = entity().getComponent<CameraComponent>().camera.getProjection();
+                        for (int c=0; c<4; ++c) for (int r=0; r<4; ++r)
+                            require(std::isfinite(p[c][r]), "New/Open created invalid projection");
+                        require(std::abs(p[1][1] / p[0][0] - float(expected.x) / expected.y) < 1e-5f,
+                            "New/Open camera does not match usable pixels");
+                    };
+                    events = 0;
+                    newScene();
+                    m_ActiveScene->createEntity("new camera").addComponent<CameraComponent>();
+                    verify();
+                    events = 0;
+                    dialog("F06 Editor Open", Action::Submit, file, [&] { openScene(); });
+                    verify();
+                }
+                em->unsubscribe<ViewPortResizeEvent>("F06 initialization observer");
+                std::cout << "OBSERVED: real New/Open used integer pixels or last usable framebuffer for fractional/zero/negative/subpixel sizes\n";
+            } catch (...) {
+                Application::getEventManager()->unsubscribe<ViewPortResizeEvent>("F06 initialization observer");
+                onDetach();
+                throw;
+            }
+            onDetach();
+            drainEvents();
+        }
+
     private:
         Entity entity() {
             auto view = m_ActiveScene->getRegistry().view<TagComponent>();
@@ -449,6 +507,17 @@ namespace Rubber {
             std::cout << "OBSERVED: both dialogs rejected over-capacity paths without writing or crashing\n";
         }
     };
+
+    void checkViewportSceneInitialization() {
+        require(ImGui::GetCurrentContext() != nullptr, "Viewport Open requires a live ImGui context");
+        auto* window = static_cast<GLFWwindow*>(Application::getWindow().getNativeWindow());
+        HWND owner = glfwGetWin32Window(window);
+        require(IsWindow(owner) && GetWindowThreadProcessId(owner, nullptr) == GetCurrentThreadId(),
+            "Viewport Open requires the Application UI thread");
+        glfwShowWindow(window);
+        EditorIssue15Fixture fixture;
+        fixture.runViewportInitialization();
+    }
 
     void checkEditorIssue15() {
         auto* window = static_cast<GLFWwindow*>(Application::getWindow().getNativeWindow());

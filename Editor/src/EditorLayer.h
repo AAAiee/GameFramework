@@ -15,6 +15,13 @@ namespace Rubber {
 
 	class KeyPressedEvent;
 
+    /** Owns one scene and render target; requires Application, GL and ImGui contexts.
+     * Application dispatches events, performs fixed updates, then renders ImGui.
+     * onUpdate consumes the preceding panel size, resizes to usable integer pixels,
+     * queues camera propagation and renders the scene into the framebuffer.
+     * onImGuiRender records the next size and displays the current attachment.
+     * Independent simultaneous scene viewports are unsupported.
+     */
 	class EditorLayer : public Layer
 	{
 	public:
@@ -28,8 +35,10 @@ namespace Rubber {
         friend class EditorIssue12Fixture;
         /** Drives real scene Save As/Open and native dialogs in Regression. */
         friend class EditorIssue15Fixture;
+        friend class ViewportPixelsFixture;
 
 	private:
+        void initializeSceneViewport();
 		void newScene();
 		void openScene();
 		void saveScene();
