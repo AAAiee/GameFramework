@@ -699,3 +699,30 @@ the Windows SDK. Initial Debug attempts without those platform accommodations
 failed in existing Core.h. These are syntax/generation checks only. The Windows-only
 native-dialog extension and PowerShell entry have not been compiled or run here.
 No compatibility edits or generated projects are included in the patch.
+
+## F06 Windows attempt 1 and backend linkage repair
+
+The Windows host generated the solution for `904c414` successfully, but its
+Debug Rebuild failed while linking Regression with LNK2005/LNK1169. Both the
+Engine `ImGuiBuildcpp.cpp` wrapper and the ImGui project compiled the GLFW and
+OpenGL backend implementations. The viewport fixture's direct font-texture
+refresh caused the linker to extract the separate OpenGL backend object as well
+as Engine's combined backend object. That attempt did not reach runtime checks
+or Release validation and supplies no fractional/zero-size observations.
+
+The obsolete first-party Engine wrapper is removed. The existing ImGui project
+is now the sole compilation owner of both backends, shared by Editor and
+Regression through Engine's existing dependency. Vendor implementations and
+build files are unchanged. The fixture still calls the real font-texture refresh;
+all behavioral assertions, selectors and private-desktop isolation are retained.
+
+Local repair verification: VS2022 project generation in the isolated temporary
+copy using the supplied dependency snapshots passed. Generated x64 Debug/Release
+projects contain exactly one compilation of each backend, both in ImGui, retain
+C++20, and include ViewportPixelsCheck in Regression. A separate GCC C++20 link
+probe against the actual supplied ImGui core and OpenGL backend resolves both
+`ImGui_ImplOpenGL3_Init` and `ImGui_ImplOpenGL3_DestroyFontsTexture` in unoptimized
+Debug and optimized Release builds. The probe does not call GL functions or
+exercise an editor context; it is linkage evidence only. Windows/MSVC Rebuild,
+the complete Regression suite, all configured selectors and issue-17.ps1 in both
+configurations remain pending host execution.
