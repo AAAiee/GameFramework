@@ -412,21 +412,27 @@ promise texture, script or runtime-state round trips. Reliable final write-error
 reporting, YAML validation/recovery and preserving the active scene after failed
 Open remain deferred. The runtime serialization entry points are assertion stubs.
 
-F04 evidence for this commit:
+F04 evidence (current Windows execution; earlier attempts are historical):
 
 - **Source inspection:** both native APIs use explicit wide entry points and
   `std::size(szFile)` for `nMaxFile`; Open retains `OFN_FILEMUSTEXIST`, while Save
   uses `OFN_OVERWRITEPROMPT` with `OFN_PATHMUSTEXIST` and `OFN_NOCHANGEDIR`.
-- **Windows builds/runtime:** Debug and Release MSVC Rebuild, all regressions and
-  the configured Windows script are pending host execution. This Linux container
-  cannot supply authoritative Windows dialog observations.
-- **Manual observations:** not run. On the Windows host, separately record Save
-  As to a new filename and reopen, overwrite decline/accept, cancel and Unicode
-  filename behavior, with configuration and observed result. Automated fixture
-  output must not be relabeled as manual evidence.
+- **Windows builds/runtime:** Windows host execution on 2026-10-16 passed Debug
+  and Release MSVC solution Rebuild, the full Regression suite, scene-hooks,
+  camera-inverse, renderer-batches, and Tests/Windows/issue-15.ps1 in both builds.
+  The validated implementation commit is a40f6aaa67e78e196d15823984db66cc2e3cb0fb;
+  its report is .sandcastle/logs/spec-11/issue-15-verified-<SHA>/results.md.
+  Automated observations covered new-file save/reopen, overwrite decline and
+  confirmation, cancellation, Unicode, missing-file rejection, and native
+  FNERR_BUFFERTOOSMALL for both over-capacity inputs. Follow-up documentation
+  commits receive their own matching-SHA host reports; reports identify build
+  targets and results rather than treating source inspection as runtime evidence.
+- **Manual observations:** not run. The user requested unattended automation.
+  The native-dialog fixture performed the behaviors above on a private desktop;
+  these results are automated observations and are not relabeled as manual ones.
 
-Local verification results are recorded below; none substitutes for the pending
-Windows checks or manual observations.
+The following container verification and failed attempts are historical. They
+are separate from the successful Windows host execution recorded above.
 
 Local F04 verification: `git diff --check` passed. Premake generation with
 `--file=Build.lua --os=windows vs2022` exited 0 in an isolated temporary copy
