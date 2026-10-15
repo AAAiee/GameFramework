@@ -5,8 +5,10 @@ configuration. Run `Regression.exe` for all checks, `Regression.exe scene-hooks`
 for the hook check, or `Regression.exe camera-inverse` for the inverse projection
 check. `Regression.exe renderer-batches` runs the F03 renderer check.
 `Regression.exe editor-issue-12` runs the genuine editor fixture.
-`Regression.exe editor-issue-15` runs the native scene dialog fixture. No
-arguments run all five checks; the scene, renderer and editor checks share one
+`Regression.exe editor-issue-15` runs the native scene dialog fixture.
+`Regression.exe entity-tags` runs the F05 hierarchy fixture; `editor-issue-16`
+runs the same assertions and also emits the Windows script marker. No
+arguments run the complete suite; the scene, renderer and editor checks share one
 Application. Failures
 use exceptions and a nonzero exit status rather than `assert`,
 so checks remain active in Release. An unknown selector exits with status 2.
@@ -541,3 +543,76 @@ failure. After repairing the driver, standalone Debug issue-15 completed all
 assertions with exit 0 on 2026-10-16, including both buffer-capacity errors
 (FNERR_BUFFERTOOSMALL). Full matching-commit Debug/Release validation follows in
 the host report; the standalone run is not a claim that those builds passed.
+
+
+## Literal entity tags (F05 / issue #16)
+
+`entity-tags` drives the production SceneHierachyPanel with a real ImGui context,
+font atlas, draw lists, keyboard/text event queue and vendored std::string adapter.
+It creates a real Scene under Regression's hidden Application/OpenGL context.
+A narrow friend fixture observes selection and calls the actual row renderer for
+label evidence; no widget, adapter, Scene or delete operation is replaced.
+The complete hierarchy/properties windows handle the interaction frames.
+The context is scoped separately so the full suite's editor font atlas and
+FontManager indices survive. No backend or application lifecycle is changed.
+
+The always-active checks click the row and expansion arrow, focus the production
+Tag input, and use Ctrl+A, Backspace, UTF-8 input and Enter to rename it. The
+sequence covers `%`, `%s`, `%n`, mixed percent text, Chinese/accented Latin/Greek,
+255 bytes, 256 bytes, more than 8192 bytes, and empty text. Exact component bytes
+must match after each edit. Real ImGui label logging checks the full text,
+including the end of the long tag; the empty label must produce no text.
+Submitted row IDs must remain equal across renames, and hierarchy expansion and
+selection must survive. Blank-space deselection and clicking the renamed row
+must work. A right click opens the production context menu and a mouse click on
+Delete Entity must invalidate the registry handle and clear selection. A final
+frame renders the now-empty scene. There is a 300-frame bound; failures throw
+in Debug and Release. OBSERVED lines are printed only after their assertions.
+
+Engine's first-party Premake project lists `misc/cpp/imgui_stdlib.cpp` once,
+with PCH disabled for that translation unit. Editor and Regression consume that
+single Engine implementation. Vendor source/project files remain unchanged.
+Regenerate and Rebuild both x64 configurations with the existing commands above,
+then run the full suite and all configured selectors, including `entity-tags`.
+Run the required editor acceptance script in each build:
+
+```powershell
+& '.\Tests\Windows\issue-16.ps1' -Configuration Debug -BinaryRoot "$PWD\Binaries\windows-x86_64\Debug"
+& '.\Tests\Windows\issue-16.ps1' -Configuration Release -BinaryRoot "$PWD\Binaries\windows-x86_64\Release"
+```
+
+The script accepts the existing BinaryRoot layouts, runs `editor-issue-16` from
+the executable output folder, and retains `issue-16.stdout.log` and
+`issue-16.stderr.log` there. It requires exit 0 and `PASS: editor-issue-16`, then
+prints that marker. It has a 60-second timeout and closes only its own child.
+Regression's private desktop initialization remains mandatory and fails closed;
+this fixture uses a genuine panel test context without native dialogs or user
+input. The existing scene-hooks, camera-inverse, renderer-batches and editor
+selectors remain available; no arguments include all of them.
+
+The panel header documents weak scene ownership and borrowed selection. Keep the
+Scene and selected handle alive through rendering; setContext clears selection.
+Tags are null-terminated UTF-8 text without embedded NUL, edited directly in the
+component's owning std::string. There is no panel-imposed 255-byte limit; memory
+and ImGui's supported string sizes still apply. Visible Unicode glyphs depend on
+the active editor font's coverage. Font fallback/coverage and general external
+entity-deletion validity are outside F05.
+
+F05 execution evidence: Windows Debug/Release builds, Regression runtime and the
+PowerShell script are pending host execution. No editor interaction or manual
+observation has been executed in this Linux container. On the host, the fixture's
+OBSERVED lines record completed automated panel interactions; they must not be
+reported as manual observations. Earlier issue #15 passes cover the accepted
+base and do not validate this new code.
+
+Local F05 verification: `git diff --check` passed. In an isolated temporary copy
+using `/opt/editor-dependencies`, Premake generation with
+`--file=Build.lua --os=windows vs2022` exited 0. Generated project inspection found
+one adapter compilation entry, in Engine with `PrecompiledHeader=NotUsing`, and
+the EntityTagsCheck source in Regression. No generated files were added here.
+A direct GCC C++20 syntax attempt hit existing MSVC integer suffixes and missing
+dependent `template` keywords in dormant FSM headers. In the temporary copy only,
+adding suffix operators and those two keywords allowed syntax checks of the new
+fixture and changed production panel to exit 0. These accommodations are absent
+from the committed sources. This is syntax/generation evidence, not an MSVC build
+or a runtime observation. PowerShell and Windows/MSVC are unavailable here.

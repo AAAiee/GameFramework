@@ -2,6 +2,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include "Utilities/FontsManager/FontManager.h"
 #include <entt.hpp>
+#include <misc/cpp/imgui_stdlib.h>
 
 
 
@@ -177,7 +178,7 @@ namespace Rubber {
 		flags |= ImGuiTreeNodeFlags_SpanAvailWidth; // make the node span the entire width of the window
 
 		// draw the entity's tree node
-		bool opened = ImGui::TreeNodeEx((void*)(uintptr_t)entity, flags, tag.c_str());
+		bool opened = ImGui::TreeNodeEx((void*)(uintptr_t)entity, flags, "%s", tag.c_str());
 
 		// if the entity node is clicked, select it
 		if (ImGui::IsItemClicked()) {
@@ -214,16 +215,8 @@ namespace Rubber {
 
 		drawComponent<TagComponent>("Tag", entity, [](Entity entity)
 			{ 
-				// Use a char buffer to store the tag string temporarily
-				std::string& tag = entity.getComponent<TagComponent>().tag;
-				char buffer[256];
-				memset(buffer, 0, sizeof(buffer));  //ensure clean buffer
-				strcpy_s(buffer, sizeof(buffer), tag.c_str());
-
-				// output the buffer's content into the input text field
-				if (ImGui::InputText("##Tag", buffer, sizeof(buffer))) {
-					tag = std::string(buffer);
-				}
+                std::string& tag = entity.getComponent<TagComponent>().tag;
+                ImGui::InputText("##Tag", &tag);
 			}, false);
 
 		ImGui::SameLine();

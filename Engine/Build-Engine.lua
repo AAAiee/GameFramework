@@ -6,6 +6,12 @@ project "Engine"
 
    files { "Source/**.h", "Source/**.cpp", "RBVendor/stb_image/stb_image.h" , "RBVendor/stb_image/stb_image.cpp"}
    
+   -- Compile the existing string adapter once into Engine, shared by Editor and Regression.
+   files { "RBVendor/imGui/misc/cpp/imgui_stdlib.cpp" }
+   filter "files:RBVendor/imGui/misc/cpp/imgui_stdlib.cpp"
+       flags { "NoPCH" }
+   filter {}
+
    IncludeDir = {}
    IncludeDir["GLFW"]    = "RBVendor/glfw/include"
    IncludeDir["Glad"]    = "RBVendor/glad/include"
