@@ -2,6 +2,7 @@
 #include "EditorIssue15Fixture.h"
 #include "EditorLayer.h"
 #include "Rubber/Window/Window.h"
+#include "Rubber/imGui/ImGuiLayer.h"
 #include <GLFW/glfw3.h>
 #include <atomic>
 #include <thread>
@@ -16,6 +17,28 @@ namespace Rubber {
         void require(bool condition, const char* message) {
             if (!condition) throw std::runtime_error(message);
         }
+
+        /** Standalone selection precedes Application::run(), which normally attaches
+         * ImGui. Reuse the application's context in the full suite; otherwise own
+         * a production adapter until after the editor fixture has been destroyed.
+         */
+        class DialogImGuiScope {
+        public:
+            DialogImGuiScope() : m_OwnsContext(ImGui::GetCurrentContext() == nullptr) {
+                if (m_OwnsContext) m_Layer.onAttach();
+            }
+
+            ~DialogImGuiScope() {
+                if (m_OwnsContext) m_Layer.onDetach();
+            }
+
+            DialogImGuiScope(const DialogImGuiScope&) = delete;
+            DialogImGuiScope& operator=(const DialogImGuiScope&) = delete;
+
+        private:
+            ImGuiLayer m_Layer;
+            bool m_OwnsContext;
+        };
 
         constexpr auto filter = L"Rubber Scene (*.rubber)\0*.rubber\0\0";
         enum class Action { Submit, Cancel, Decline, Confirm, Reject };
@@ -307,6 +330,12 @@ namespace Rubber {
 
     void checkEditorIssue15() {
         glfwShowWindow(static_cast<GLFWwindow*>(Application::getWindow().getNativeWindow()));
+        DialogImGuiScope imgui;
+        require(ImGui::GetCurrentContext() != nullptr,
+            "Dialog fixture requires an initialized ImGui context before editor attachment");
+        require(ImGui::GetIO().BackendPlatformUserData != nullptr
+            && ImGui::GetIO().BackendRendererUserData != nullptr,
+            "Dialog fixture requires the production ImGui platform and renderer adapters");
         EditorIssue15Fixture fixture;
         fixture.run();
     }

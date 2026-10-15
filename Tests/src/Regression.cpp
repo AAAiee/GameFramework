@@ -89,13 +89,13 @@ int main(int argc, char** argv) {
             Rubber::checkRendererBatches();
             std::cout << "PASS: renderer-batches\n";
         }
-        if (argc == 1 || std::string_view(argv[1]) == "editor-issue-15") {
-            Rubber::checkEditorIssue15();
-            std::cout << "PASS: editor-issue-15\n";
-        }
         if (argc == 1 || std::string_view(argv[1]) == "editor-issue-12") {
             Rubber::checkEditorIssue12(application);
             std::cout << "PASS: editor-issue-12\n";
+        }
+        if (argc == 1 || std::string_view(argv[1]) == "editor-issue-15") {
+            Rubber::checkEditorIssue15();
+            std::cout << "PASS: editor-issue-15\n";
         }
         return 0;
     } catch (const std::exception& error) {

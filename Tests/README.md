@@ -341,7 +341,9 @@ not replace the dialogs or serializer. A worker drives Win32 filename controls
 and standard command buttons on that fixture's UI thread, including the actual
 overwrite Yes/No prompt. It uses control IDs rather than translated labels.
 No menu-click automation or application run loop is needed for these synchronous
-modal entry points. It requires an interactive Windows desktop and OpenGL 4.5,
+modal entry points. The standalone selector attaches a scoped production
+ImGuiLayer before attaching EditorLayer, and detaches it after the fixture is
+destroyed. It checks that the context and both backend adapters exist. It requires an interactive Windows desktop and OpenGL 4.5,
 just like the other Application fixtures.
 
 The always-active assertions cover:
@@ -371,7 +373,11 @@ Each dialog has a 15-second automation deadline; on failure the driver closes
 only dialogs on its own UI thread. The script has a final 240-second bound and
 kills only the Regression process it started. No success marker is printed before
 all behavioral assertions pass. Existing selectors remain available; no arguments
-run this fixture before the editor loop fixture, which closes the Application.
+run the editor loop fixture first, release its scene and shortcut subscription,
+then run the dialog fixture using the initialized ImGui context and font atlas.
+Closing the application loop does not prevent synchronous modal dialog calls.
+This order avoids reinitializing the atlas behind FontManager's process-wide
+indices and keeps only one Scene subscribed at a time.
 
 After the existing Premake generation and x64 Debug/Release solution Rebuild
 commands above, run in **both** configurations:
@@ -429,3 +435,40 @@ used for F03. That check does not compile the Windows-only fixture or native
 dialog source. Windows SDK/MSVC and PowerShell are unavailable here, so their
 compilation and the script's runtime behavior remain unrun. No dependencies,
 vendor code, submodule pins or generated artifacts were changed in the checkout.
+
+
+## F04 Windows attempt 1 and bounded fixture repair
+
+For `c0f477da2bb652401a58af61eb0bf549d00c9529`, the host completed solution
+generation and the Windows x64 Debug solution Rebuild with exit 0. The complete
+Debug regression invocation timed out after 240 seconds at ImGui's
+`No current context` assertion. Application construction installs its ImGuiLayer,
+but attachment occurs only in `Application::run()`. The dialog fixture called
+EditorLayer attachment before that run and therefore accessed uninitialized ImGui.
+The supplied logs are under
+`.sandcastle/logs/spec-11/issue-15-c0f477da2bb652401a58af61eb0bf549d00c9529-attempt-1`.
+That attempt supplies no Release, dialog-runtime or manual-observation pass.
+
+The repair initializes the standalone fixture with the production ImGuiLayer and
+checks the context and backend readiness using Release-active exceptions. The
+complete suite instead runs the existing editor-loop check first and releases its
+editor resources/subscriptions before the dialog check reuses its context. All
+existing rendering, viewport, dialog and serialization assertions remain active;
+the success marker still follows every dialog assertion. No Application lifecycle,
+FontManager, vendor or native-dialog implementation is changed by this repair.
+
+Repaired Windows Debug/Release builds, full-suite runs, configured selectors and
+`Tests/Windows/issue-15.ps1` remain pending host execution. Manual observations
+remain unrun and must be recorded separately from automated fixture output.
+
+Local bounded-repair checks: `git diff --check` passed. GCC C++20 syntax checking
+of Regression.cpp passed with the supplied dependencies, `GLFW_INCLUDE_NONE` and
+the existing temporary MSVC-literal suffix adapter. A supplementary syntax check
+of the exact new DialogImGuiScope class extracted to a temporary translation unit
+also passed against the production ImGuiLayer and supplied ImGui headers with
+that adapter. Without the adapter, existing `ui32` literals block GCC. A syntax
+check of EditorIssue12Fixture.cpp with the adapter remains blocked by the existing
+dependent-template syntax in FsmSystem.h and FsmPostMoving.h. These are syntax
+checks only; they do not execute ImGui, the Windows fixture or its backend-readiness
+assertions. No project-source list changed, so no new generation is needed for
+this bounded repair.

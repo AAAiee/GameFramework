@@ -85,6 +85,14 @@ namespace Rubber {
 
         bool completed() const { return m_Completed; }
 
+        /** Release the scene subscription before another fixture uses this Application. */
+        void releaseEditor() {
+            onDetach();
+            m_Entity = {};
+            m_ActiveScene.reset();
+            m_FrameBuffer.reset();
+        }
+
     private:
         Entity m_Entity;
         glm::vec2 m_LastViewportDimension = { 0.0f, 0.0f };
@@ -99,5 +107,6 @@ namespace Rubber {
         glfwShowWindow(static_cast<GLFWwindow*>(Application::getWindow().getNativeWindow()));
         application.run();
         require(fixture->completed(), "Editor loop exited before behavioral checks completed");
+        fixture->releaseEditor();
     }
 }
