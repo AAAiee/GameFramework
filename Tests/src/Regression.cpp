@@ -11,6 +11,7 @@
 #include <stdexcept>
 #include "EditorIssue12Fixture.h"
 #include "CameraInverseCheck.h"
+#include "RendererBatchesCheck.h"
 
 namespace {
     void require(bool condition, const char* message) {
@@ -58,8 +59,8 @@ namespace {
 }
 
 int main(int argc, char** argv) {
-    if (argc > 2 || (argc == 2 && (std::string_view(argv[1]) != "scene-hooks" && std::string_view(argv[1]) != "editor-issue-12" && std::string_view(argv[1]) != "camera-inverse"))) {
-        std::cerr << "Usage: Regression.exe [scene-hooks|editor-issue-12|camera-inverse]\n";
+    if (argc > 2 || (argc == 2 && (std::string_view(argv[1]) != "scene-hooks" && std::string_view(argv[1]) != "editor-issue-12" && std::string_view(argv[1]) != "camera-inverse" && std::string_view(argv[1]) != "renderer-batches"))) {
+        std::cerr << "Usage: Regression.exe [scene-hooks|editor-issue-12|camera-inverse|renderer-batches]\n";
         return 2;
     }
     try {
@@ -71,11 +72,21 @@ int main(int argc, char** argv) {
             }
         }
         Rubber::Logger::Init();
+        require(glfwInit() == GLFW_TRUE, "GLFW initialization failed");
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
+        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+        glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
         Rubber::Application application("Rubber regression");
+        glfwDefaultWindowHints();
         glfwHideWindow(static_cast<GLFWwindow*>(Rubber::Application::getWindow().getNativeWindow()));
         if (argc == 1 || std::string_view(argv[1]) == "scene-hooks") {
             checkSceneHooks();
             std::cout << "PASS: scene-hooks\n";
+        }
+        if (argc == 1 || std::string_view(argv[1]) == "renderer-batches") {
+            Rubber::checkRendererBatches();
+            std::cout << "PASS: renderer-batches\n";
         }
         if (argc == 1 || std::string_view(argv[1]) == "editor-issue-12") {
             Rubber::checkEditorIssue12(application);

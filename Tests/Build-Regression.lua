@@ -17,7 +17,8 @@ project "Regression"
         "../Engine/RBVendor/spdlogs/include",
         "../Engine/RBVendor/glm",
         "../Engine/RBVendor/entt/include",
-        "../Engine/RBVendor/glfw/include"
+        "../Engine/RBVendor/glfw/include",
+        "../Engine/RBVendor/glad/include"
     }
     links { "Engine" }
     defines { "GLFW_INCLUDE_NONE" }

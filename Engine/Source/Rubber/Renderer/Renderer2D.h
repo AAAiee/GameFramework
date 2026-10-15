@@ -11,6 +11,15 @@ namespace Rubber{
 	class OrthoCamera;
 
 
+	/** Process-wide quad renderer, owned by Renderer/Application, used on the render thread.
+	 * init, all scene/draw calls and shutdown require a current compatible graphics
+	 * context (currently OpenGL 4.5+, GLSL 450 and 32 fragment texture units).
+	 * Call beginScene, then draws, then endScene before beginning another scene;
+	 * scenes must not overlap. endScene submits pending work; an empty scene draws nothing.
+	 * Batches hold 10,000 quads and 32 textures: slot zero is owned white, leaving
+	 * 31 distinct user textures. Capacity flushes preserve submission order and transforms.
+	 * Texture references are retained through batch submission; callers own their inputs.
+	 */
 	class Renderer2D{
 		
 	public:
@@ -42,7 +51,9 @@ namespace Rubber{
 		static void drawRotatedQuad(const glm::vec3& position, const glm::vec2& scale,  float radians, const Ref<SubTexture2D>& subTexture,
 			const float TillingFactor = 1.f, const glm::vec4& tintColor = glm::vec4(1.0f));
 
-		//Matrix Overload
+		// Matrix entry points enforce the same limits as convenience wrappers.
+		// texCoord borrows exactly four coordinates for this call (copied into vertices);
+		// nullptr selects full-texture UVs. No pointer to the coordinates is retained.
 		static void drawTextureQuad(const glm::mat4& transformation, const Ref<Texture2D>& texture, const glm::vec2* texCoord=nullptr, float tillingFacor = 1.f, const glm::vec4& tintColor = glm::vec4(1.0f));
 
 		static void drawColorQuad(const glm::mat4& transformation, const glm::vec4& color,  float tillingFacor = 1.f, const glm::vec4& tintColor = glm::vec4(1.0f));

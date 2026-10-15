@@ -3,8 +3,10 @@
 `Regression` links the production Engine with C++20 and the existing Premake/MSVC
 configuration. Run `Regression.exe` for all checks, `Regression.exe scene-hooks`
 for the hook check, or `Regression.exe camera-inverse` for the inverse projection
-check. `Regression.exe editor-issue-12` runs the genuine editor fixture. No
-arguments run all three checks; the scene and editor checks share one Application. Failures
+check. `Regression.exe renderer-batches` runs the F03 renderer check.
+`Regression.exe editor-issue-12` runs the genuine editor fixture. No
+arguments run all four checks; the scene, renderer and editor checks share one
+Application. Failures
 use exceptions and a nonzero exit status rather than `assert`,
 so checks remain active in Release. An unknown selector exits with status 2.
 
@@ -14,7 +16,7 @@ through Entity. It verifies registry membership, returned references and entity
 removal. Camera hooks enqueue real viewport events; two dispatch calls deliver
 the queued events before scene destruction. No scene rendering or application
 run loop is needed. The Application creates a real GL context and initializes
-Renderer2D; its window is hidden after construction. A Windows desktop with a
+Renderer2D; its window is created hidden. A Windows desktop with a
 compatible OpenGL driver is required. Scene destruction precedes Application
 destruction. The existing process/renderer teardown limitations are unchanged.
 
@@ -256,3 +258,74 @@ and camera assertions and both selectors. It changes no production event or
 viewport behavior. Local `git diff --check` passed; the repaired runtime and fresh
 Windows Debug/Release builds remain pending host validation. Attempt 1 stopped
 at the Debug suite failure, so it supplies no Release or Windows-script pass.
+
+
+## Renderer batch limits (F03 / issue #14)
+
+The Application fixture requests a hidden OpenGL 4.5 core context before window
+creation, compatible with the production DSA calls and GLSL 450 shader. The F03
+check requires 32 fragment texture units. It uses the initialized production
+Renderer2D, real Texture2D resources and a 128 by 128 RGBA8 framebuffer; it does
+not use a replacement renderer. The editor fixture still shows its own window
+when selected or reached in the complete suite.
+
+`renderer-batches` verifies 10,000 and 10,001 quads through both matrix entry
+points, every colored/textured/subtexture wrapper (including rotation), and mixed
+calls with either color or texture triggering the split. Every quad covers a
+separate expected pixel, and the entire target is read back, including untouched
+pixels. Distinct texture colors test 31 user slots, the 32nd texture, reuse of a
+full slot map, white slot zero, and both a new and an existing high-slot texture
+when quad and texture capacity coincide. Overlapping calls verify ordering over
+both kinds of flush; an asymmetric rotated/scaled matrix verifies transforms.
+Nonuniform texels and changed caller UV storage verify four-coordinate borrowing
+and tinting. Empty/repeated ends and consecutive scenes (including the legacy
+camera overload with a different view) check reset and camera boundaries.
+
+A scoped observer of GLAD's `glNamedBufferData` and `glDrawElements` entry points
+forwards every submission to the actual driver. It checks exact upload/draw
+counts, index counts and upload bytes against the actual VAO stride: no batch
+can exceed 40,000 vertices or 60,000 indices. These independent observations
+complement framebuffer output and production statistics; no private renderer
+state or assertion-enabled build is needed. All conditions throw on failure in
+Debug and Release. GL entry points, framebuffer and viewport are restored before
+the remaining suite runs.
+
+After the existing solution generation and Debug/Release Rebuild commands, run
+from each configuration's Regression output directory (with its copied assets):
+
+```powershell
+& '.\Regression.exe' renderer-batches
+if ($LASTEXITCODE -ne 0) { throw 'renderer-batches failed' }
+& '.\Regression.exe'
+if ($LASTEXITCODE -ne 0) { throw 'complete regression suite failed' }
+```
+
+The selector prints `PASS: renderer-batches` only after all runtime checks pass
+and exits 0. Existing `scene-hooks`, `camera-inverse` and `editor-issue-12`
+selectors remain available. No Windows UI script is configured for this issue.
+
+Renderer2D is process-wide and owned by Renderer/Application. Initialization,
+scene submission and shutdown belong on the render thread with the compatible
+context current. Pair beginScene/draws/endScene; scenes must not overlap.
+endScene submits pending work, and an empty scene submits nothing. Batches hold
+10,000 quads and 31 distinct user textures in addition to the renderer-owned
+white slot zero. Existing textures reuse slots; a new texture or quad that cannot
+fit flushes before appending it. Texture references survive until submission;
+optional UV pointers borrow exactly four coordinates for the duration of the
+call and copy them into the batch. Null UVs select the full texture.
+
+Implementation verification in this Linux container is recorded below. Windows
+MSVC builds and the new runtime checks remain pending host execution; the
+previous issue #13 host results cover the accepted base only.
+
+Local F03 verification: `git diff --check` passed. Premake generation with
+`--file=Build.lua --os=windows vs2022` exited 0 in an isolated temporary copy
+using copies of `/opt/editor-dependencies`. The generated Regression project
+includes all existing fixtures plus RendererBatchesCheck, C++20, and x64 Debug
+and Release configurations. No generated files or dependency changes are part
+of this patch. GCC C++20 syntax-only checks of Renderer2D.cpp and
+RendererBatchesCheck.cpp exited 0 using the supplied include snapshots and a
+temporary forced-include adapter for existing MSVC `ui16`, `ui32`, and `ui64`
+literal suffixes. Without that adapter, GCC rejects those existing suffixes.
+This is supplementary syntax evidence only; neither the Windows executable nor
+the GL runtime assertions have been executed here.
