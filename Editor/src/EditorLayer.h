@@ -26,6 +26,8 @@ namespace Rubber {
 
         /** Grants the first-party runtime fixture access to the active editor scene. */
         friend class EditorIssue12Fixture;
+        /** Drives real scene Save As/Open and native dialogs in Regression. */
+        friend class EditorIssue15Fixture;
 
 	private:
 		void newScene();

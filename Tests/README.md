@@ -4,8 +4,9 @@
 configuration. Run `Regression.exe` for all checks, `Regression.exe scene-hooks`
 for the hook check, or `Regression.exe camera-inverse` for the inverse projection
 check. `Regression.exe renderer-batches` runs the F03 renderer check.
-`Regression.exe editor-issue-12` runs the genuine editor fixture. No
-arguments run all four checks; the scene, renderer and editor checks share one
+`Regression.exe editor-issue-12` runs the genuine editor fixture.
+`Regression.exe editor-issue-15` runs the native scene dialog fixture. No
+arguments run all five checks; the scene, renderer and editor checks share one
 Application. Failures
 use exceptions and a nonzero exit status rather than `assert`,
 so checks remain active in Release. An unknown selector exits with status 2.
@@ -329,3 +330,102 @@ temporary forced-include adapter for existing MSVC `ui16`, `ui32`, and `ui64`
 literal suffixes. Without that adapter, GCC rejects those existing suffixes.
 This is supplementary syntax evidence only; neither the Windows executable nor
 the GL runtime assertions have been executed here.
+
+
+## Scene Save As / native Windows dialogs (F04 / issue #15)
+
+`Regression.exe editor-issue-15` uses a real Application/window and production
+EditorLayer initialization, `saveScene`/`openScene`, fileDialog and SceneSerializer.
+A friend fixture accesses the editor's private entry points and scene; it does
+not replace the dialogs or serializer. A worker drives Win32 filename controls
+and standard command buttons on that fixture's UI thread, including the actual
+overwrite Yes/No prompt. It uses control IDs rather than translated labels.
+No menu-click automation or application run loop is needed for these synchronous
+modal entry points. It requires an interactive Windows desktop and OpenGL 4.5,
+just like the other Application fixtures.
+
+The always-active assertions cover:
+
+- Save As to a new `.rubber` filename in an existing directory, then reopen through
+  EditorLayer and compare Tag, Transform, Sprite color, Camera settings and
+  VisibilityControl data. A changed unsaved tag proves reopening loaded the file.
+- Decline overwrite and cancel through EditorLayer, comparing exact destination
+  bytes. Direct dialog calls separately verify empty paths on cancel and on
+  decline followed by cancel. Accept overwrite, then reopen the changed scene.
+- Save/open a filename containing Chinese, accented Latin and Greek characters,
+  compare the exact returned UTF-16 paths, and verify the reopened scene data.
+- Cancel Open, and submit a missing filename to Open: neither produces a path or
+  creates a file. This does not test malformed-YAML recovery or transactional Open.
+- Submit paths of exactly 260 UTF-16 code units to both dialogs (one beyond
+  the supported 259, since the buffer must also hold the terminator). Existing parent
+  directories and an existing Open destination isolate capacity from existence.
+  Both must return empty, preserve saved bytes, and complete without a crash.
+  Extended path spelling is used solely to prepare/read this oversized fixture;
+  production dialog calls receive ordinary paths. The editor's long-path support
+  is unchanged. The dialog working directory must also remain unchanged.
+
+The output working directory must be short enough for ordinary scene paths (the
+fixture reports a specific failure otherwise). Scene files are retained under
+`issue-15-work-<process-id>` beneath the Regression output directory for inspection.
+Each dialog has a 15-second automation deadline; on failure the driver closes
+only dialogs on its own UI thread. The script has a final 240-second bound and
+kills only the Regression process it started. No success marker is printed before
+all behavioral assertions pass. Existing selectors remain available; no arguments
+run this fixture before the editor loop fixture, which closes the Application.
+
+After the existing Premake generation and x64 Debug/Release solution Rebuild
+commands above, run in **both** configurations:
+
+```powershell
+& '.\Tests\Windows\issue-15.ps1' -Configuration Debug -BinaryRoot "$PWD\Binaries\windows-x86_64\Debug"
+& '.\Tests\Windows\issue-15.ps1' -Configuration Release -BinaryRoot "$PWD\Binaries\windows-x86_64\Release"
+```
+
+The script accepts the same BinaryRoot layouts as issue-12, requires exit 0 and
+`PASS: editor-issue-15` in the fixture's stdout, then prints that exact marker.
+It retains `issue-15.stdout.log` and `issue-15.stderr.log` in the output directory.
+`OBSERVED:` lines describe completed automated runtime assertions, not manual
+observations. Also run the configured `scene-hooks`, `camera-inverse` and
+`renderer-batches` selectors and the complete no-argument suite in both builds.
+
+File-dialog API contracts are documented at `PlatformUtil.h`: the fixed buffer
+contains 260 **wide-character elements including the terminator**, permitting at
+most 259 UTF-16 path code units. Both APIs return owning wide paths, or empty on
+cancel/common-dialog error. Open requires an existing file; Save requires an
+existing directory and confirms replacement. Dialog selection does not itself
+write a file. Filters borrow the normal double-null-terminated Win32 list for
+the modal call. Both keep the working directory and require a live Application
+on its UI thread. Cancellation and API errors remain indistinguishable.
+
+SceneSerializer's header documents the supported component fields and repeated
+placeholder identity `123123141`; loading creates fresh entities. It does not
+promise texture, script or runtime-state round trips. Reliable final write-error
+reporting, YAML validation/recovery and preserving the active scene after failed
+Open remain deferred. The runtime serialization entry points are assertion stubs.
+
+F04 evidence for this commit:
+
+- **Source inspection:** both native APIs use explicit wide entry points and
+  `std::size(szFile)` for `nMaxFile`; Open retains `OFN_FILEMUSTEXIST`, while Save
+  uses `OFN_OVERWRITEPROMPT` with `OFN_PATHMUSTEXIST` and `OFN_NOCHANGEDIR`.
+- **Windows builds/runtime:** Debug and Release MSVC Rebuild, all regressions and
+  the configured Windows script are pending host execution. This Linux container
+  cannot supply authoritative Windows dialog observations.
+- **Manual observations:** not run. On the Windows host, separately record Save
+  As to a new filename and reopen, overwrite decline/accept, cancel and Unicode
+  filename behavior, with configuration and observed result. Automated fixture
+  output must not be relabeled as manual evidence.
+
+Local verification results are recorded below; none substitutes for the pending
+Windows checks or manual observations.
+
+Local F04 verification: `git diff --check` passed. Premake generation with
+`--file=Build.lua --os=windows vs2022` exited 0 in an isolated temporary copy
+using the existing supplied dependency snapshots; the generated Regression
+project includes EditorIssue15Fixture, C++20 and x64 Debug/Release. A GCC C++20
+syntax-only check of the updated Regression.cpp exited 0 with `GLFW_INCLUDE_NONE`,
+the dependency include paths and the same temporary MSVC-literal suffix adapter
+used for F03. That check does not compile the Windows-only fixture or native
+dialog source. Windows SDK/MSVC and PowerShell are unavailable here, so their
+compilation and the script's runtime behavior remain unrun. No dependencies,
+vendor code, submodule pins or generated artifacts were changed in the checkout.
