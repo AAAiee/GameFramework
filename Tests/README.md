@@ -509,3 +509,29 @@ Release rebuilds, full-suite runs, selectors, acceptance scripts and manual
 observations remain pending Windows host execution. The original native-return
 failure is a blocker requiring that host's new diagnostic output, not a claimed
 runtime fix.
+
+
+## Native dialog automation and desktop isolation
+
+Regression creates a private Windows desktop before initializing GLFW or editor
+windows. It never switches the input desktop. If desktop creation or attachment
+fails, it exits with an error instead of displaying dialogs on the user's desktop.
+The issue-15 PowerShell entry runs a hidden console, bounds execution to 240
+seconds, and kills only its own child on timeout. No manual clicks are required.
+
+The native dialog driver supports legacy filename controls and the current
+nested Edit control. Shell DirectUI confirmation/error buttons use UI Automation
+Invoke patterns; title-bar buttons are excluded. Overwrite actions are checked
+against actual destination bytes and reopened scene contents. Native prompts
+remain real production dialogs; no dialog or serializer is mocked.
+
+Capacity fixtures use an existing short root and nested components of at most
+eight characters. This prevents Open from returning a shorter 8.3 alias instead
+of exercising its 260-element output buffer. Both dialogs must observe submitted
+input and a native rejection, return empty, and preserve destination bytes.
+
+Host diagnosis: the earlier Save As failure was a filename-control discovery
+failure. After repairing the driver, standalone Debug issue-15 completed all
+assertions with exit 0 on 2026-10-16, including both buffer-capacity errors
+(FNERR_BUFFERTOOSMALL). Full matching-commit Debug/Release validation follows in
+the host report; the standalone run is not a claim that those builds passed.

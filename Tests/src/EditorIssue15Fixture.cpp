@@ -14,6 +14,10 @@
 #include <windows.h>
 #include <commdlg.h>
 #include <dlgs.h>
+#include <UIAutomation.h>
+#include <wrl/client.h>
+#pragma comment(lib, "ole32.lib")
+#pragma comment(lib, "oleaut32.lib")
 
 namespace Rubber {
     namespace {
@@ -49,6 +53,9 @@ namespace Rubber {
         struct Windows {
             std::vector<HWND> dialogs;
             static BOOL CALLBACK collect(HWND window, LPARAM context) {
+                DWORD process = 0;
+                GetWindowThreadProcessId(window, &process);
+                if (process != GetCurrentProcessId()) return TRUE;
                 wchar_t name[32]{};
                 GetClassNameW(window, name, 32);
                 if (IsWindowVisible(window) && std::wstring_view(name) == L"#32770")
@@ -72,6 +79,19 @@ namespace Rubber {
                     return TRUE;
                 }, reinterpret_cast<LPARAM>(&edit));
             }
+            if (!edit) {
+                // Current Windows dialogs nest the filename Edit (1001) below
+                // DirectUI/ComboBox hosts. The address bar has a different ID.
+                EnumChildWindows(dialog, [](HWND child, LPARAM context) -> BOOL {
+                    wchar_t name[32]{};
+                    GetClassNameW(child, name, 32);
+                    if (GetDlgCtrlID(child) == 1001 && std::wstring_view(name) == L"Edit") {
+                        *reinterpret_cast<HWND*>(context) = child;
+                        return FALSE;
+                    }
+                    return TRUE;
+                }, reinterpret_cast<LPARAM>(&edit));
+            }
             return edit;
         }
 
@@ -79,6 +99,48 @@ namespace Rubber {
             require(PostMessageW(dialog, WM_COMMAND, MAKEWPARAM(id, BN_CLICKED),
                 reinterpret_cast<LPARAM>(GetDlgItem(dialog, id))) != FALSE,
                 "Could not send native dialog command");
+        }
+
+        using AutomationElement = Microsoft::WRL::ComPtr<IUIAutomationElement>;
+
+        std::vector<AutomationElement> accessibleButtons(IUIAutomation* automation, HWND window) {
+            AutomationElement root;
+            require(SUCCEEDED(automation->ElementFromHandle(window, &root)), "Cannot inspect native prompt");
+            Microsoft::WRL::ComPtr<IUIAutomationCondition> condition;
+            VARIANT type{};
+            type.vt = VT_I4;
+            type.lVal = UIA_ButtonControlTypeId;
+            require(SUCCEEDED(automation->CreatePropertyCondition(UIA_ControlTypePropertyId, type, &condition)),
+                "Cannot query native prompt buttons");
+            Microsoft::WRL::ComPtr<IUIAutomationElementArray> elements;
+            require(SUCCEEDED(root->FindAll(TreeScope_Descendants, condition.Get(), &elements)),
+                "Cannot enumerate native prompt buttons");
+            int length = 0;
+            elements->get_Length(&length);
+            std::vector<AutomationElement> buttons;
+            Microsoft::WRL::ComPtr<IUIAutomationTreeWalker> walker;
+            require(SUCCEEDED(automation->get_ControlViewWalker(&walker)), "Cannot inspect prompt hierarchy");
+            for (int i = 0; i < length; ++i) {
+                AutomationElement button;
+                elements->GetElement(i, &button);
+                BOOL enabled = FALSE;
+                button->get_CurrentIsEnabled(&enabled);
+                AutomationElement parent;
+                walker->GetParentElement(button.Get(), &parent);
+                CONTROLTYPEID parentType = 0;
+                if (parent) parent->get_CurrentControlType(&parentType);
+                // A private desktop is deliberately not the input desktop;
+                // providers may label its usable controls as offscreen.
+                if (enabled && parentType != UIA_TitleBarControlTypeId) buttons.push_back(button);
+            }
+            return buttons;
+        }
+
+        void invoke(IUIAutomationElement* button) {
+            Microsoft::WRL::ComPtr<IUIAutomationInvokePattern> pattern;
+            require(SUCCEEDED(button->GetCurrentPatternAs(UIA_InvokePatternId, IID_PPV_ARGS(&pattern))),
+                "Native prompt button has no invoke action");
+            require(SUCCEEDED(pattern->Invoke()), "Cannot invoke native prompt button");
         }
 
         /** Drives only native dialogs on the calling UI thread. All file selection,
@@ -90,21 +152,28 @@ namespace Rubber {
             std::cout << "DIALOG: " << operation << ", action=" << static_cast<int>(action)
                 << ", path-code-units=" << path.wstring().size() << std::endl;
             const DWORD uiThread = GetCurrentThreadId();
+            const HDESK desktop = GetThreadDesktop(uiThread);
             std::atomic<bool> finished = false;
             std::exception_ptr driverFailure;
             bool sawDialog = false, submitted = false, sawPrompt = false;
             bool canceled = false, rejected = false;
             size_t visibleDialogs = 0;
             std::thread driver([&] {
+                const bool attached = SetThreadDesktop(desktop) != FALSE;
+                const HRESULT apartment = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+                Microsoft::WRL::ComPtr<IUIAutomation> automation;
+                CoCreateInstance(__uuidof(CUIAutomation), nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&automation));
                 HWND main = nullptr;
                 bool promptAnswered = false;
                 const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(15);
                 try {
+                    require(attached && SUCCEEDED(apartment) && automation,
+                        "Cannot initialize native dialog automation on the private desktop");
                     while (!finished.load()) {
                         require(std::chrono::steady_clock::now() < deadline,
                             "Native file dialog exceeded 15 second timeout");
                         Windows windows;
-                        EnumThreadWindows(uiThread, Windows::collect, reinterpret_cast<LPARAM>(&windows));
+                        EnumDesktopWindows(desktop, Windows::collect, reinterpret_cast<LPARAM>(&windows));
                         visibleDialogs = (std::max)(visibleDialogs, windows.dialogs.size());
                         if (!main) {
                             for (HWND window : windows.dialogs) {
@@ -148,6 +217,19 @@ namespace Rubber {
                                     "Unexpected native dialog validation error");
                                 command(window, IDOK);
                                 rejected = true;
+                            } else if (automation) {
+                                const auto buttons = accessibleButtons(automation.Get(), window);
+                                if ((action == Action::Decline || action == Action::Confirm)
+                                    && buttons.size() == 2 && !promptAnswered) {
+                                    // Shell DirectUI exposes ordered Yes/No buttons without
+                                    // HWND IDs. The file assertions below verify each choice.
+                                    invoke(buttons[action == Action::Confirm ? 0 : 1].Get());
+                                    sawPrompt = promptAnswered = true;
+                                } else if ((action == Action::Reject || action == Action::Capacity)
+                                    && buttons.size() == 1 && !rejected) {
+                                    invoke(buttons.front().Get());
+                                    rejected = true;
+                                }
                             }
                         }
                         if (main && IsWindowEnabled(main) && !canceled
@@ -164,11 +246,13 @@ namespace Rubber {
                     // is a final bound if Windows cannot process these close requests.
                     while (!finished.load()) {
                         Windows windows;
-                        EnumThreadWindows(uiThread, Windows::collect, reinterpret_cast<LPARAM>(&windows));
+                        EnumDesktopWindows(desktop, Windows::collect, reinterpret_cast<LPARAM>(&windows));
                         for (HWND window : windows.dialogs) PostMessageW(window, WM_CLOSE, 0, 0);
                         std::this_thread::sleep_for(std::chrono::milliseconds(10));
                     }
                 }
+                automation.Reset();
+                if (SUCCEEDED(apartment)) CoUninitialize();
             });
             std::exception_ptr callFailure;
             DWORD nativeError = 0;
@@ -179,12 +263,12 @@ namespace Rubber {
             } catch (...) { callFailure = std::current_exception(); }
             finished.store(true);
             driver.join();
-            if (!sawDialog || nativeError != 0) {
+            if (!sawDialog || nativeError != 0 || action == Action::Capacity) {
                 std::cerr << "DIALOG RESULT: " << operation
                     << ", action=" << static_cast<int>(action)
                     << ", CommDlgExtendedError=0x" << std::hex << nativeError << std::dec
                     << ", visible-dialogs=" << visibleDialogs
-                    << ", submitted=" << submitted << '\n';
+                    << ", rejected=" << rejected << ", canceled=" << canceled << ", submitted=" << submitted << '\n';
             }
             if (driverFailure) std::rethrow_exception(driverFailure);
             if (callFailure) std::rethrow_exception(callFailure);
@@ -327,19 +411,29 @@ namespace Rubber {
                 "Open accepted or created a nonexistent file");
             std::cout << "OBSERVED: Unicode Save As/Open preserved path and scene; Open rejected missing file\n";
 
-            // Exactly 260 path code units requires 261 buffer elements with null.
-            // Keep the filename component below 255 and use an existing directory.
-            const std::wstring suffix = L".rubber";
-            const auto filenameLength = 260 - root.wstring().size() - 1;
-            require(filenameLength > suffix.size() && filenameLength <= 255,
-                "Cannot form a valid single-component capacity fixture");
-            const auto oversized = root / (std::wstring(filenameLength - suffix.size(), L'x') + suffix);
+            // Existing long filenames may be returned as short 8.3 aliases by
+            // Open. Build the boundary entirely from already-short components so
+            // Windows cannot satisfy the request by shortening the output path.
+            std::vector<wchar_t> shortRoot(32768);
+            const DWORD shortLength = GetShortPathNameW(root.c_str(), shortRoot.data(),
+                static_cast<DWORD>(shortRoot.size()));
+            require(shortLength > 0 && shortLength < shortRoot.size(),
+                "Cannot obtain the capacity fixture's short root path");
+            std::filesystem::path boundaryRoot(shortRoot.data());
+            const auto extended = [](const std::filesystem::path& path) {
+                const auto normal = path.wstring();
+                return std::filesystem::path(normal.starts_with(L"\\\\")
+                    ? L"\\\\?\\UNC\\" + normal.substr(2) : L"\\\\?\\" + normal);
+            };
+            while (boundaryRoot.wstring().size() + 9 < 260) {
+                boundaryRoot /= boundaryRoot.wstring().size() + 9 == 259 ? L"capacit" : L"capacity";
+                std::filesystem::create_directory(extended(boundaryRoot));
+            }
+            const auto filenameLength = 260 - boundaryRoot.wstring().size() - 1;
+            require(filenameLength > 0 && filenameLength <= 8, "Invalid short-component capacity fixture");
+            const auto oversized = boundaryRoot / std::wstring(filenameLength, L'x');
             require(oversized.wstring().size() == 260, "Capacity boundary fixture has wrong length");
-            // Extended spelling only prepares/reads a fixture on hosts without
-            // longPathAware; production dialogs receive the ordinary spelling.
-            const auto normal = oversized.wstring();
-            const auto setupFile = std::filesystem::path(normal.starts_with(L"\\\\")
-                ? L"\\\\?\\UNC\\" + normal.substr(2) : L"\\\\?\\" + normal);
+            const auto setupFile = extended(oversized);
             dialog("fileDialog Save As", Action::Capacity, oversized, [&] { result = fileDialog::saveFile(filter); });
             require(result.empty() && !std::filesystem::exists(setupFile),
                 "Save As accepted an over-capacity path");

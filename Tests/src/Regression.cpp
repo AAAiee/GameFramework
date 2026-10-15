@@ -13,8 +13,32 @@
 #include "CameraInverseCheck.h"
 #include "RendererBatchesCheck.h"
 #include "EditorIssue15Fixture.h"
+#include <windows.h>
 
 namespace {
+    // Never switch the user's input desktop. All regression windows, including
+    // modal native dialogs, stay on this process's private desktop.
+    class RegressionDesktop {
+    public:
+        RegressionDesktop() : m_Previous(GetThreadDesktop(GetCurrentThreadId())) {
+            const auto name = L"RubberRegression-" + std::to_wstring(GetCurrentProcessId());
+            m_Desktop = CreateDesktopW(name.c_str(), nullptr, nullptr, 0, GENERIC_ALL, nullptr);
+            if (!m_Desktop || !SetThreadDesktop(m_Desktop)) {
+                if (m_Desktop) CloseDesktop(m_Desktop);
+                throw std::runtime_error("Cannot isolate regression UI; refusing to open dialogs on the user's desktop");
+            }
+        }
+        ~RegressionDesktop() {
+            SetThreadDesktop(m_Previous);
+            CloseDesktop(m_Desktop);
+        }
+        RegressionDesktop(const RegressionDesktop&) = delete;
+        RegressionDesktop& operator=(const RegressionDesktop&) = delete;
+    private:
+        HDESK m_Previous;
+        HDESK m_Desktop = nullptr;
+    };
+
     void require(bool condition, const char* message) {
         if (!condition) {
             throw std::runtime_error(message);
@@ -65,6 +89,7 @@ int main(int argc, char** argv) {
         return 2;
     }
     try {
+        RegressionDesktop desktop;
         if (argc == 1 || std::string_view(argv[1]) == "camera-inverse") {
             Rubber::checkCameraInverse();
             std::cout << "PASS: camera-inverse\n";

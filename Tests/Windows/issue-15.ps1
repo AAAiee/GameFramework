@@ -27,7 +27,7 @@ $process = $null
 try {
     $process = Start-Process -FilePath $binary -ArgumentList 'editor-issue-15' `
         -WorkingDirectory $outputDirectory -RedirectStandardOutput $stdout `
-        -RedirectStandardError $stderr -PassThru
+        -RedirectStandardError $stderr -WindowStyle Hidden -PassThru
     if (-not $process.WaitForExit(240000)) {
         throw 'Editor fixture exceeded its 240 second timeout'
     }
