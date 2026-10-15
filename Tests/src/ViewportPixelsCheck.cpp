@@ -33,6 +33,9 @@ namespace Rubber {
     class ViewportPixelsFixture final : public EditorLayer {
     public:
         void run(ImGuiLayer& imgui) {
+            // Exercise the warm backend even when this selector runs alone.
+            // NewFrame creates device objects only while ShaderHandle is absent.
+            ImGui_ImplOpenGL3_NewFrame();
             onAttach();
             m_FrameBuffer->resize(811, 607);
             auto em = Application::getEventManager();
@@ -115,7 +118,19 @@ namespace Rubber {
                 require(binding == 0 && viewport[2] == 801 && viewport[3] == 603,
                     "Editor framebuffer binding/viewport behavior changed");
                 // onAttach adds real editor fonts, including when reusing the full-suite atlas.
+                // This pinned backend's NewFrame does not refresh fonts once its
+                // shader exists. Rebuild explicitly before ImGui::NewFrame.
                 ImGui_ImplOpenGL3_DestroyFontsTexture();
+                require(ImGui_ImplOpenGL3_CreateFontsTexture(), "Editor font texture rebuild failed");
+                const auto* atlas = ImGui::GetIO().Fonts;
+                require(atlas->IsBuilt() && atlas->TexID != nullptr,
+                    "Editor font atlas is not ready for rendering");
+                GLint fontWidth = 0, fontHeight = 0;
+                const auto fontTexture = static_cast<GLuint>(reinterpret_cast<uintptr_t>(atlas->TexID));
+                glGetTextureLevelParameteriv(fontTexture, 0, GL_TEXTURE_WIDTH, &fontWidth);
+                glGetTextureLevelParameteriv(fontTexture, 0, GL_TEXTURE_HEIGHT, &fontHeight);
+                require(fontWidth == atlas->TexWidth && fontHeight == atlas->TexHeight
+                    && fontWidth > 0 && fontHeight > 0, "Editor font texture does not match rebuilt atlas");
                 auto& style = ImGui::GetStyle();
                 const float previous = style.WindowMinSize.x;
                 const auto flags = ImGui::GetIO().ConfigFlags;

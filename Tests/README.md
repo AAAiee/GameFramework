@@ -636,8 +636,10 @@ to 801.75 by 603.25 must yield 801x603 framebuffer specification, actual GL text
 storage, complete framebuffer, event and camera framing. Adding another camera
 checks Scene's retained pixel dimensions. Rendering actual editor panels checks
 exact restoration of a nondefault 137.25 WindowMinSize.x with docking both disabled
-and enabled. The fixture refreshes the real backend font texture after editor
-attachment adds fonts to the full suite's shared atlas.
+and enabled. The fixture warms the real OpenGL backend before editor attachment,
+including in standalone selectors. After attachment adds fonts to the shared
+atlas, it explicitly destroys and recreates the backend font texture and checks
+that the atlas is built and the uploaded GL texture matches its dimensions.
 
 The existing isolated native-dialog driver also exercises real New/Open at
 fractional, zero, negative and subpixel-to-zero extents. A serialized camera is
@@ -726,3 +728,32 @@ Debug and optimized Release builds. The probe does not call GL functions or
 exercise an editor context; it is linkage evidence only. Windows/MSVC Rebuild,
 the complete Regression suite, all configured selectors and issue-17.ps1 in both
 configurations remain pending host execution.
+
+## F06 Windows attempt 2 and font atlas repair
+
+The Windows host rebuilt Debug for `161475e` successfully. The complete suite
+passed the earlier selectors through `editor-issue-12` and reached F06 camera
+delivery at 800x600 and 801x603. It then stopped at ImGui's `Fonts->IsBuilt()`
+assertion and exceeded the 240 second timeout. There was no F06 success marker;
+Release and the issue-17 Windows script were not reached. This is incomplete
+runtime evidence, not a completed fractional/zero-size acceptance run.
+
+The fixture had destroyed the font texture after EditorLayer added fonts, relying
+on the next backend NewFrame to recreate it. The pinned OpenGL backend's NewFrame
+only creates device objects (including fonts) when its shader handle is absent.
+In the complete suite that shader already exists. The fixture now explicitly
+calls the backend's CreateFontsTexture after destruction and checks both CPU
+atlas readiness and actual uploaded GL texture dimensions before rendering.
+Warming the backend before attachment makes standalone selectors exercise this
+same existing-shader path. Production code, vendor code, private-desktop
+isolation, timeouts, selectors and all viewport/style assertions are retained.
+
+Local repair verification: GCC C++20 syntax checks passed for the changed fixture
+with Debug and Release flags in the existing temporary dependency-backed copy,
+using the previously documented Linux compatibility accommodations. These are
+not MSVC or GL runtime checks. Debug and Release link probes against the supplied
+ImGui core/OpenGL backend also resolved Init, DestroyFontsTexture and the newly
+called CreateFontsTexture and exited 0 without invoking GL. `git diff --check`
+passed. Windows Debug/Release regression and script
+execution, including completed fractional/zero-size observations, remain pending
+the host; this container has no compatible GL/window runtime for those checks.
