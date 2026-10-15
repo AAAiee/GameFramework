@@ -362,6 +362,8 @@ The always-active assertions cover:
   the supported 259, since the buffer must also hold the terminator). Existing parent
   directories and an existing Open destination isolate capacity from existence.
   Both must return empty, preserve saved bytes, and complete without a crash.
+  The driver permits the common-dialog API to return immediately with
+  `FNERR_BUFFERTOOSMALL`, or to show a native rejection prompt that it dismisses.
   Extended path spelling is used solely to prepare/read this oversized fixture;
   production dialog calls receive ordinary paths. The editor's long-path support
   is unchanged. The dialog working directory must also remain unchanged.

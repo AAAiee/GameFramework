@@ -41,7 +41,7 @@ namespace Rubber {
         };
 
         constexpr auto filter = L"Rubber Scene (*.rubber)\0*.rubber\0\0";
-        enum class Action { Submit, Cancel, Decline, Confirm, Reject };
+        enum class Action { Submit, Cancel, Decline, Confirm, Reject, Capacity };
 
         struct Windows {
             std::vector<HWND> dialogs;
@@ -137,14 +137,15 @@ namespace Rubber {
                                     promptAnswered = true;
                                 }
                             } else if (GetDlgItem(window, IDOK)) {
-                                require(action == Action::Reject, "Unexpected native dialog validation error");
+                                require(action == Action::Reject || action == Action::Capacity,
+                                    "Unexpected native dialog validation error");
                                 command(window, IDOK);
                                 rejected = true;
                             }
                         }
                         if (main && IsWindowEnabled(main) && !canceled
                             && ((action == Action::Decline && promptAnswered)
-                                || (action == Action::Reject && rejected))) {
+                            || ((action == Action::Reject || action == Action::Capacity) && rejected))) {
                             command(main, IDCANCEL);
                             canceled = true;
                         }
@@ -168,14 +169,16 @@ namespace Rubber {
             driver.join();
             if (driverFailure) std::rethrow_exception(driverFailure);
             if (callFailure) std::rethrow_exception(callFailure);
-            require(sawDialog, "Production call did not show a native filename dialog");
-            if (action != Action::Cancel) require(submitted, "Filename was not submitted");
+            if (action != Action::Capacity)
+                require(sawDialog, "Production call did not show a native filename dialog");
+            if (action != Action::Cancel && action != Action::Capacity)
+                require(submitted, "Filename was not submitted");
             if (action == Action::Decline || action == Action::Confirm)
                 require(sawPrompt, "Existing file did not require overwrite confirmation");
             if (action == Action::Decline || action == Action::Cancel)
                 require(canceled, "Native dialog did not process cancellation");
-            // An oversized buffer can also fail directly with FNERR_BUFFERTOOSMALL;
-            // the caller's empty-result assertion covers that outcome.
+            // The over-capacity call may fail directly with FNERR_BUFFERTOOSMALL,
+            // without displaying a dialog. Its caller still asserts an empty path.
         }
 
         std::string bytes(const std::filesystem::path& path) {
@@ -312,13 +315,13 @@ namespace Rubber {
             const auto normal = oversized.wstring();
             const auto setupFile = std::filesystem::path(normal.starts_with(L"\\\\")
                 ? L"\\\\?\\UNC\\" + normal.substr(2) : L"\\\\?\\" + normal);
-            dialog(Action::Reject, oversized, [&] { result = fileDialog::saveFile(filter); });
+            dialog(Action::Capacity, oversized, [&] { result = fileDialog::saveFile(filter); });
             require(result.empty() && !std::filesystem::exists(setupFile),
                 "Save As accepted an over-capacity path");
             // Existing oversized file ensures Open tests capacity, not existence.
             std::filesystem::copy_file(destination, setupFile);
             const auto oversizedBytes = bytes(setupFile);
-            dialog(Action::Reject, oversized, [&] { result = fileDialog::openFile(filter); });
+            dialog(Action::Capacity, oversized, [&] { result = fileDialog::openFile(filter); });
             require(result.empty() && bytes(setupFile) == oversizedBytes,
                 "Open accepted or changed an over-capacity destination");
             require(bytes(destination) == bytes(unicode), "Rejected operations changed a saved destination");
