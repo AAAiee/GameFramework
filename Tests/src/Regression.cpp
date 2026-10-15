@@ -10,6 +10,7 @@
 #include <GLFW/glfw3.h>
 #include <stdexcept>
 #include "EditorIssue12Fixture.h"
+#include "CameraInverseCheck.h"
 
 namespace {
     void require(bool condition, const char* message) {
@@ -57,11 +58,18 @@ namespace {
 }
 
 int main(int argc, char** argv) {
-    if (argc > 2 || (argc == 2 && (std::string_view(argv[1]) != "scene-hooks" && std::string_view(argv[1]) != "editor-issue-12"))) {
-        std::cerr << "Usage: Regression.exe [scene-hooks|editor-issue-12]\n";
+    if (argc > 2 || (argc == 2 && (std::string_view(argv[1]) != "scene-hooks" && std::string_view(argv[1]) != "editor-issue-12" && std::string_view(argv[1]) != "camera-inverse"))) {
+        std::cerr << "Usage: Regression.exe [scene-hooks|editor-issue-12|camera-inverse]\n";
         return 2;
     }
     try {
+        if (argc == 1 || std::string_view(argv[1]) == "camera-inverse") {
+            Rubber::checkCameraInverse();
+            std::cout << "PASS: camera-inverse\n";
+            if (argc == 2) {
+                return 0;
+            }
+        }
         Rubber::Logger::Init();
         Rubber::Application application("Rubber regression");
         glfwHideWindow(static_cast<GLFWwindow*>(Rubber::Application::getWindow().getNativeWindow()));

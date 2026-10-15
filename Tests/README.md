@@ -1,9 +1,10 @@
 # First-party regression checks
 
 `Regression` links the production Engine with C++20 and the existing Premake/MSVC
-configuration. Run `Regression.exe` for all checks, or `Regression.exe scene-hooks`
-for the hook check. `Regression.exe editor-issue-12` runs the genuine editor
-fixture. No arguments run both checks in sequence using one Application. Failures
+configuration. Run `Regression.exe` for all checks, `Regression.exe scene-hooks`
+for the hook check, or `Regression.exe camera-inverse` for the inverse projection
+check. `Regression.exe editor-issue-12` runs the genuine editor fixture. No
+arguments run all three checks; the scene and editor checks share one Application. Failures
 use exceptions and a nonzero exit status rather than `assert`,
 so checks remain active in Release. An unknown selector exits with status 2.
 
@@ -16,6 +17,57 @@ run loop is needed. The Application creates a real GL context and initializes
 Renderer2D; its window is hidden after construction. A Windows desktop with a
 compatible OpenGL driver is required. Scene destruction precedes Application
 destruction. The existing process/renderer teardown limitations are unchanged.
+
+## Camera inverse projection (F02 / issue #13)
+
+`Camera` owns its projection. `setProjection` copies the supplied matrix;
+`getProjection` borrows camera storage (the mutable overload permits changes).
+`getInverseProjection() const` returns an owned `glm::mat4` snapshot without
+modifying that storage. Callers can retain the inverse after a later projection
+change or camera destruction. Supply an invertible projection; singular-matrix
+validation is outside this correction.
+
+`camera-inverse` calls the production Camera accessor using a nonidentity
+perspective projection (57 degrees, 16:9, near 0.25, far 150). A compile-time
+assertion requires exactly `glm::mat4` as its return type. The runtime check binds
+the returned value in the caller, checks all original projection elements are
+exactly unchanged, replaces the camera projection, and then multiplies the
+saved original by the retained inverse. Every product element must be within
+an absolute tolerance of `1e-5` of identity; NaN also fails. Exceptions keep the
+check active in Release. This selector requires no Application or GL context.
+The existing scene and editor selectors remain available.
+
+After the Windows solution Rebuild commands below, run these focused checks
+from each executable output directory:
+
+```powershell
+foreach ($configuration in @('Debug', 'Release')) {
+    Push-Location ".\Binaries\windows-x86_64\$configuration\Regression"
+    try {
+        foreach ($selector in @('scene-hooks', 'camera-inverse')) {
+            & '.\Regression.exe' $selector
+            if ($LASTEXITCODE -ne 0) { throw "$configuration $selector failed: $LASTEXITCODE" }
+        }
+    } finally {
+        Pop-Location
+    }
+}
+```
+
+Each invocation must exit 0 and print `PASS: scene-hooks` or
+`PASS: camera-inverse`, respectively, only after its checks pass. No arguments
+must still run the entire suite, including `editor-issue-12`. Issue #13 has no
+additional Windows UI script configured.
+
+Local F02 evidence: the new `CameraInverseCheck.cpp` was compiled and run through
+a temporary standalone driver against the production Camera header and the
+read-only GLM snapshot in `/opt/editor-dependencies/glm`, using C++20 with GCC
+`-O0 -g -DRB_DEBUG -DRB_ENABLE_ASSERTS` and `-O2 -DNDEBUG -DRELEASE`. Both runs
+printed `PASS: camera-inverse` and exited 0. This checks the actual matrix oracle
+in unoptimized and optimized builds; it is not a Windows/MSVC Regression run.
+Windows Debug/Release builds, the full suite and both configured selectors for
+this commit remain pending execution by the Windows host. The prior accepted
+base's host results do not validate this new change.
 
 ## Editor runtime fixture
 
