@@ -362,8 +362,9 @@ The always-active assertions cover:
   the supported 259, since the buffer must also hold the terminator). Existing parent
   directories and an existing Open destination isolate capacity from existence.
   Both must return empty, preserve saved bytes, and complete without a crash.
-  The driver permits the common-dialog API to return immediately with
-  `FNERR_BUFFERTOOSMALL`, or to show a native rejection prompt that it dismisses.
+  The driver requires the oversized name to be entered and submitted before
+  accepting `FNERR_BUFFERTOOSMALL` or a native rejection prompt followed by
+  cancellation. An API initialization failure cannot pass this check.
   Extended path spelling is used solely to prepare/read this oversized fixture;
   production dialog calls receive ordinary paths. The editor's long-path support
   is unchanged. The dialog working directory must also remain unchanged.
@@ -474,3 +475,37 @@ dependent-template syntax in FsmSystem.h and FsmPostMoving.h. These are syntax
 checks only; they do not execute ImGui, the Windows fixture or its backend-readiness
 assertions. No project-source list changed, so no new generation is needed for
 this bounded repair.
+
+
+## F04 Windows attempt 2 and diagnostic repair
+
+For `63e95e72497700473b48f9721ddb1130d910d86f`, the supplied host logs record
+successful generation and x64 Debug solution Rebuild. The complete Debug suite
+printed passes for camera-inverse, scene-hooks, renderer-batches and editor-issue-12,
+then exited 1 with `Production call did not show a native filename dialog`.
+No `OBSERVED:` line was printed, so this attempt establishes no successful scene
+save/reopen, overwrite, Unicode or capacity behavior. Release and the Windows
+acceptance script were not reached. Manual observations remain unrun.
+
+The log does not include the common-dialog error code, so the reason for the
+first Save As return remains unresolved. This repair adds a flushed `DIALOG:`
+line naming each production operation, action and input length. On missing UI or
+API error, `DIALOG RESULT:` reports `CommDlgExtendedError` (captured on the calling
+UI thread immediately after the production call), visible dialog count and
+whether a filename was submitted. The fixture also checks that the Application
+HWND is live and belongs to its calling thread before attaching the editor.
+These diagnostics retain the failing assertion; they do not make a missing
+native dialog pass.
+
+The previous capacity exception could accept an immediate empty result before
+submitting the oversized path. It now requires observed UI, exact input entry,
+submission, and either `FNERR_BUFFERTOOSMALL` or a native validation prompt and
+cancellation. Existing byte-preservation and empty-return assertions still apply.
+
+Local verification for this diagnostic repair: `git diff --check` passed. This
+Linux container has no Windows SDK/MSVC, Windows desktop or PowerShell; the
+changed Windows-only fixture has not been compiled or executed here. Debug and
+Release rebuilds, full-suite runs, selectors, acceptance scripts and manual
+observations remain pending Windows host execution. The original native-return
+failure is a blocker requiring that host's new diagnostic output, not a claimed
+runtime fix.

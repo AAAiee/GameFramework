@@ -4,12 +4,15 @@
 #include "Rubber/Window/Window.h"
 #include "Rubber/imGui/ImGuiLayer.h"
 #include <GLFW/glfw3.h>
+#define GLFW_EXPOSE_NATIVE_WIN32
+#include <GLFW/glfw3native.h>
 #include <atomic>
 #include <thread>
 #include <exception>
 #include <stdexcept>
 #include <iterator>
 #include <windows.h>
+#include <commdlg.h>
 #include <dlgs.h>
 
 namespace Rubber {
@@ -83,12 +86,15 @@ namespace Rubber {
          * Polling discovers controls; elapsed time alone never establishes success.
          */
         template<class Call>
-        void dialog(Action action, const std::filesystem::path& path, Call call) {
+        void dialog(const char* operation, Action action, const std::filesystem::path& path, Call call) {
+            std::cout << "DIALOG: " << operation << ", action=" << static_cast<int>(action)
+                << ", path-code-units=" << path.wstring().size() << std::endl;
             const DWORD uiThread = GetCurrentThreadId();
             std::atomic<bool> finished = false;
             std::exception_ptr driverFailure;
             bool sawDialog = false, submitted = false, sawPrompt = false;
             bool canceled = false, rejected = false;
+            size_t visibleDialogs = 0;
             std::thread driver([&] {
                 HWND main = nullptr;
                 bool promptAnswered = false;
@@ -99,6 +105,7 @@ namespace Rubber {
                             "Native file dialog exceeded 15 second timeout");
                         Windows windows;
                         EnumThreadWindows(uiThread, Windows::collect, reinterpret_cast<LPARAM>(&windows));
+                        visibleDialogs = (std::max)(visibleDialogs, windows.dialogs.size());
                         if (!main) {
                             for (HWND window : windows.dialogs) {
                                 if (filenameEdit(window)) { main = window; break; }
@@ -164,21 +171,39 @@ namespace Rubber {
                 }
             });
             std::exception_ptr callFailure;
-            try { call(); } catch (...) { callFailure = std::current_exception(); }
+            DWORD nativeError = 0;
+            try {
+                call();
+                // Read on the calling UI thread before any subsequent dialog API.
+                nativeError = CommDlgExtendedError();
+            } catch (...) { callFailure = std::current_exception(); }
             finished.store(true);
             driver.join();
+            if (!sawDialog || nativeError != 0) {
+                std::cerr << "DIALOG RESULT: " << operation
+                    << ", action=" << static_cast<int>(action)
+                    << ", CommDlgExtendedError=0x" << std::hex << nativeError << std::dec
+                    << ", visible-dialogs=" << visibleDialogs
+                    << ", submitted=" << submitted << '\n';
+            }
             if (driverFailure) std::rethrow_exception(driverFailure);
             if (callFailure) std::rethrow_exception(callFailure);
-            if (action != Action::Capacity)
-                require(sawDialog, "Production call did not show a native filename dialog");
-            if (action != Action::Cancel && action != Action::Capacity)
+            require(sawDialog, "Production call did not show a native filename dialog (see DIALOG RESULT)");
+            if (action != Action::Cancel)
                 require(submitted, "Filename was not submitted");
             if (action == Action::Decline || action == Action::Confirm)
                 require(sawPrompt, "Existing file did not require overwrite confirmation");
             if (action == Action::Decline || action == Action::Cancel)
                 require(canceled, "Native dialog did not process cancellation");
-            // The over-capacity call may fail directly with FNERR_BUFFERTOOSMALL,
-            // without displaying a dialog. Its caller still asserts an empty path.
+            if (action == Action::Capacity) {
+                // A rejection is evidence only after the oversized filename was
+                // actually submitted. Initialization failures cannot test capacity.
+                require(nativeError == FNERR_BUFFERTOOSMALL
+                    || (nativeError == 0 && rejected && canceled),
+                    "Capacity check did not observe a native buffer/filename rejection");
+            } else {
+                require(nativeError == 0, "Native dialog API failed (see DIALOG RESULT)");
+            }
         }
 
         std::string bytes(const std::filesystem::path& path) {
@@ -255,49 +280,49 @@ namespace Rubber {
             const auto destination = root / "new-scene.rubber";
             require(destination.wstring().size() < 250,
                 "Binary output directory is too long for normal-path dialog checks");
-            dialog(Action::Submit, destination, [&] { saveScene(); });
+            dialog("Editor Save As", Action::Submit, destination, [&] { saveScene(); });
             const auto original = bytes(destination);
             require(original.find("123123141") != std::string::npos, "Placeholder entity identity missing");
             entity().getComponent<TagComponent>().tag = "unsaved edit";
-            dialog(Action::Submit, destination, [&] { openScene(); });
+            dialog("Editor Open", Action::Submit, destination, [&] { openScene(); });
             verify("F04 original");
             drainEvents();
             std::cout << "OBSERVED: new scene saved and reopened with supported component data\n";
 
             entity().getComponent<TagComponent>().tag = "F04 replacement";
-            dialog(Action::Decline, destination, [&] { saveScene(); });
+            dialog("Editor Save As", Action::Decline, destination, [&] { saveScene(); });
             require(bytes(destination) == original, "Declining overwrite changed destination bytes");
-            dialog(Action::Cancel, {}, [&] { saveScene(); });
+            dialog("Editor Save As", Action::Cancel, {}, [&] { saveScene(); });
             require(bytes(destination) == original, "Canceling editor Save As changed destination bytes");
             std::wstring result = L"not empty";
-            dialog(Action::Cancel, {}, [&] { result = fileDialog::saveFile(filter); });
+            dialog("fileDialog Save As", Action::Cancel, {}, [&] { result = fileDialog::saveFile(filter); });
             require(result.empty(), "Canceled Save As did not return an empty path");
-            dialog(Action::Decline, destination, [&] { result = fileDialog::saveFile(filter); });
+            dialog("fileDialog Save As", Action::Decline, destination, [&] { result = fileDialog::saveFile(filter); });
             require(result.empty(), "Decline then cancel did not return an empty path");
             require(bytes(destination) == original, "Decline/cancel changed destination");
-            dialog(Action::Confirm, destination, [&] { saveScene(); });
+            dialog("Editor Save As", Action::Confirm, destination, [&] { saveScene(); });
             require(bytes(destination) != original, "Confirmed replacement did not write new scene");
-            dialog(Action::Submit, destination, [&] { openScene(); });
+            dialog("Editor Open", Action::Submit, destination, [&] { openScene(); });
             verify("F04 replacement");
             drainEvents();
             std::cout << "OBSERVED: overwrite prompted; decline/cancel preserved bytes; confirmation replaced scene\n";
 
             const auto unicode = root / L"\u573a\u666f-\u00e9-\u03a9.rubber";
-            dialog(Action::Submit, unicode, [&] { result = fileDialog::saveFile(filter); });
+            dialog("fileDialog Save As", Action::Submit, unicode, [&] { result = fileDialog::saveFile(filter); });
             require(result == unicode.wstring(), "Save As changed the Unicode path");
             // Exercise the editor's entire save/open path too, not just path selection.
-            dialog(Action::Submit, unicode, [&] { saveScene(); });
+            dialog("Editor Save As", Action::Submit, unicode, [&] { saveScene(); });
             require(bytes(unicode) == bytes(destination), "Unicode scene file differs from saved scene");
             entity().getComponent<TagComponent>().tag = "unsaved Unicode edit";
-            dialog(Action::Submit, unicode, [&] { openScene(); });
+            dialog("Editor Open", Action::Submit, unicode, [&] { openScene(); });
             verify("F04 replacement");
             drainEvents();
-            dialog(Action::Submit, unicode, [&] { result = fileDialog::openFile(filter); });
+            dialog("fileDialog Open", Action::Submit, unicode, [&] { result = fileDialog::openFile(filter); });
             require(result == unicode.wstring(), "Open changed the Unicode path");
-            dialog(Action::Cancel, {}, [&] { result = fileDialog::openFile(filter); });
+            dialog("fileDialog Open", Action::Cancel, {}, [&] { result = fileDialog::openFile(filter); });
             require(result.empty(), "Canceled Open did not return an empty path");
             const auto missing = root / "missing.rubber";
-            dialog(Action::Reject, missing, [&] { result = fileDialog::openFile(filter); });
+            dialog("fileDialog Open", Action::Reject, missing, [&] { result = fileDialog::openFile(filter); });
             require(result.empty() && !std::filesystem::exists(missing),
                 "Open accepted or created a nonexistent file");
             std::cout << "OBSERVED: Unicode Save As/Open preserved path and scene; Open rejected missing file\n";
@@ -315,13 +340,13 @@ namespace Rubber {
             const auto normal = oversized.wstring();
             const auto setupFile = std::filesystem::path(normal.starts_with(L"\\\\")
                 ? L"\\\\?\\UNC\\" + normal.substr(2) : L"\\\\?\\" + normal);
-            dialog(Action::Capacity, oversized, [&] { result = fileDialog::saveFile(filter); });
+            dialog("fileDialog Save As", Action::Capacity, oversized, [&] { result = fileDialog::saveFile(filter); });
             require(result.empty() && !std::filesystem::exists(setupFile),
                 "Save As accepted an over-capacity path");
             // Existing oversized file ensures Open tests capacity, not existence.
             std::filesystem::copy_file(destination, setupFile);
             const auto oversizedBytes = bytes(setupFile);
-            dialog(Action::Capacity, oversized, [&] { result = fileDialog::openFile(filter); });
+            dialog("fileDialog Open", Action::Capacity, oversized, [&] { result = fileDialog::openFile(filter); });
             require(result.empty() && bytes(setupFile) == oversizedBytes,
                 "Open accepted or changed an over-capacity destination");
             require(bytes(destination) == bytes(unicode), "Rejected operations changed a saved destination");
@@ -332,7 +357,13 @@ namespace Rubber {
     };
 
     void checkEditorIssue15() {
-        glfwShowWindow(static_cast<GLFWwindow*>(Application::getWindow().getNativeWindow()));
+        auto* window = static_cast<GLFWwindow*>(Application::getWindow().getNativeWindow());
+        require(window != nullptr, "Dialog fixture has no Application window");
+        HWND owner = glfwGetWin32Window(window);
+        require(IsWindow(owner) != FALSE, "Dialog fixture Application HWND is invalid");
+        require(GetWindowThreadProcessId(owner, nullptr) == GetCurrentThreadId(),
+            "Dialog fixture must run on the Application window UI thread");
+        glfwShowWindow(window);
         DialogImGuiScope imgui;
         require(ImGui::GetCurrentContext() != nullptr,
             "Dialog fixture requires an initialized ImGui context before editor attachment");
