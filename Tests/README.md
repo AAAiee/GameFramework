@@ -56,14 +56,38 @@ on success and nonzero on failed assertions or unexpected exceptions. Inspect
 the expected case count as above: doctest can accept a filter that matches no
 cases. Reports belong under the output directory, not in source control.
 
-For the controlled failure acceptance, use a disposable verification copy on the
-prepared host, reusing its dependencies. Temporarily add `CHECK(false);` immediately
-after `CHECK_NOTHROW` inside the camera test in `unit/UnitTests.cpp`. Rebuild only
-UnitTests and run it in **both** configurations; record the failed assertion and
-nonzero exit (capture `$LASTEXITCODE` immediately). Do not use doctest's
-`--no-exitcode` option. Remove the temporary assertion, rebuild both configurations,
-and repeat the passing runs above before delivery. Do not change the shared check,
-production Camera, or commit the deliberate failure.
+For host acceptance, run the executable acceptance script below after generation,
+using the same prepared verification worktree and MSBuild installation. Run the
+two configurations sequentially, without concurrent builds in that worktree:
+
+```powershell
+foreach ($configuration in @('Debug', 'Release')) {
+    $binaryRoot = Join-Path $repository "Binaries\windows-x86_64\$configuration"
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File '.\Tests\Windows\unit-tests.ps1' -Configuration $configuration -BinaryRoot $binaryRoot -MSBuild $msbuild
+    if ($LASTEXITCODE -ne 0) { throw "$configuration UnitTests acceptance failed" }
+}
+```
+
+`unit-tests.ps1` builds only UnitTests, runs all cases and a camera-filtered JUnit
+report, then builds a disposable runner copy with `CHECK(false);` added after
+`CHECK_NOTHROW`. It copies the generated project beside the original so relative
+paths and MSVC configuration settings remain identical, redirects probe outputs
+to a temporary directory, and never edits tracked sources. The probe must report
+the deliberate assertion, exit 1, and report exactly one failed case in JUnit.
+A crash, timeout, missing case, or unexpected exit fails acceptance. Its project,
+source and binaries are removed in `finally`; the normal target is then rebuilt
+and both passing runs repeated. Every execution uses `--no-breaks`; no
+`--no-exitcode` override is used. Build timeouts are 180 seconds; run timeouts are
+30 seconds. Timeout cleanup stops only the invocation's process tree.
+
+Retain `UnitTests/issue-29/acceptance.log`, stdout/stderr logs and JUnit XML from
+each configuration output directory. The summary records the candidate commit,
+configuration, MSBuild path, stage exits and `PASS: unit-tests-Debug` or
+`PASS: unit-tests-Release` only after all checks pass. These two script invocations
+are required **in addition to** the existing host Regression/UI plan: a solution
+build or passing Regression camera selector does not execute doctest. A retry
+replaces its stage evidence; retain each completed run with its candidate SHA.
+No dependency downloads or additional worktree preparation are required.
 
 This target adds no UI or Regression acceptance replacement. Continue the full
 Regression suite, all 13 configured selectors and all five existing Windows
