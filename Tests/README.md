@@ -1222,3 +1222,58 @@ check reached the existing `GLShader.h` constexpr upload helpers, which GCC
 rejects because they call GL function pointers. Those pre-existing declarations
 and the C++20/Premake/MSVC configuration were preserved. This container has no
 OpenGL runtime/context runner; no GL execution or Windows build is claimed.
+
+## OpenGL buffer inclusion and diagnostics (F14 / issue #24)
+
+`gl-buffers` compiles a translation unit that deliberately includes both
+`GLBuffers.h` and `GLVertexArray.h` twice. It uses the suite's real hidden GL 4.5
+context on its private Windows desktop. A real GL index buffer is attached and
+its stored `Ref` and object identity are checked, including after upload and
+after the caller releases its owner. GL allocation/upload byte sizes and
+index-element counts are checked independently. Replacing the attachment must
+release the previous shared owner. A present, zero-element buffer is returned
+unchanged; no draw is issued and zero-default draw semantics remain deferred.
+
+In Debug only, a leaf SEH helper calls the production unset-buffer accessor.
+The check requires both `EXCEPTION_BREAKPOINT` and the intended logged assertion
+message. An access violation (the original defect), no exception, or missing
+diagnostic fails. The handler is scoped to this call; no global exception
+handler, input dialog, debugger, or user interaction is needed. It leaves the
+ordinary assertion implementation intact. Release never calls the unset-buffer
+path: assertions are disabled and supply no runtime guard. All valid-buffer
+oracles throw on failure in both builds.
+
+Buffer factory results own GPU storage; vertex arrays retain shared ownership
+of attached buffers. Accessors borrow their stored references/layouts. Keep a
+compatible GL context live until these objects are destroyed. Allocation and
+upload sizes, layout element sizes/offsets and layout strides are **bytes**;
+`IndexBuffer::getCount()` and explicit indexed draw counts are **index elements**.
+Uploads copy caller data and replace GL storage. Integer/matrix/multiple-buffer
+vertex-layout support and zero-default indexed-draw behavior remain deferred.
+
+After each Debug and Release Rebuild, run from that configuration's Regression
+output directory:
+
+```powershell
+& '.\Regression.exe' gl-buffers
+if ($LASTEXITCODE -ne 0) { throw "gl-buffers failed: $LASTEXITCODE" }
+& '.\Regression.exe'
+if ($LASTEXITCODE -ne 0) { throw "Regression suite failed: $LASTEXITCODE" }
+```
+
+The focused check must print `PASS: gl-buffers` and exit 0 only after its
+configuration's oracles pass. The no-argument suite includes this check and all
+previous selectors remain available. No additional Windows UI script is
+configured for this issue. Windows/MSVC Debug and Release execution, including
+the isolated Debug diagnostic, is pending the host; Linux compile checks cannot
+establish those runtime results.
+
+Local F14 evidence: GCC C++20 syntax checks passed for a repeated-include driver
+and the production `GLBuffers.cpp` / `GLVertexArray.cpp` in Debug
+(`-O0 -g -DRB_DEBUG -DRB_ENABLE_ASSERTS -DRB_PLATFORM_WINDOWS`) and Release
+(`-O2 -DNDEBUG -DRELEASE`). The Release check also compiled the new
+`GLBuffersCheck.cpp`. These used the read-only dependency snapshots and a
+temporary preinclude supporting the existing MSVC `ui32` suffix and mapping
+`__debugbreak` to a compiler trap for syntax checking only. No production macros
+were changed. The MSVC SEH Debug fixture, linking and real-context runtime were
+not executed on Linux; both configurations' Windows runs remain required.

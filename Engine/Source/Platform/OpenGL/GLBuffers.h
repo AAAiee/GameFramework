@@ -1,3 +1,4 @@
+#pragma once
 #include "Rubber/Renderer/Buffers.h"
 #include "Rubber/Renderer/BufferLayout.h"
 

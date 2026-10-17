@@ -106,7 +106,7 @@ namespace Rubber {
     {
 		RB_PROFILE_FUNC();
 
-        RB_CORE_ASSERT(m_IndexBuffer->getCount(), "index buffer is not set yet, make sure you add it before get it");
+        RB_CORE_ASSERT(m_IndexBuffer, "index buffer is not set yet, make sure you add it before get it");
         return m_IndexBuffer;
     }
 }

@@ -26,6 +26,7 @@ namespace  Rubber {
 		virtual void setViewPort(int width, int height) = 0;
 		virtual void clearColor(const glm::vec4& color) = 0;
 		virtual void clear() = 0; 
+        /** Draws count uint32_t index elements, not bytes; zero-default semantics remain deferred. */
 		virtual void drawIndexed(const Ref<VertexArray>& vertexArray, uint32_t count =0) = 0; 
 		virtual void setPolygonMode(RendererPolygonMode mode) = 0;
 		static inline RendererAPI::API getAPI() {

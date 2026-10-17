@@ -14,6 +14,7 @@ namespace Rubber {
 	// helper functions  
 	uint32_t getShaderTypeSize(ShaderType type);
 
+    /** Describes one attribute; size and offset are bytes within a vertex. */
 	struct BufferElement {
 		std::string   name;
 		uint32_t      size;
@@ -39,6 +40,12 @@ namespace Rubber {
 		~BufferElement() = default;
 	};
 
+    /**
+     * Owns attribute descriptions and computes byte offsets and byte stride.
+     * Layout describes the caller's vertex memory; it does not own vertex data.
+     * The GL path's broader integer/matrix/multiple-buffer layout support is
+     * deferred; this contract does not expand its supported attribute formats.
+     */
 	class BufferLayout {
 	public:
 		inline const Vector<BufferElement>& getElementBuffer() const {

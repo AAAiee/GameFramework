@@ -12,6 +12,13 @@
 */ 
 namespace Rubber {
 	class BufferLayout;
+    /**
+     * Owns a GPU vertex buffer; create transfers unique ownership to the caller.
+     * All create/upload size arguments are bytes. Input data is borrowed only
+     * during the call and copied to GL storage; uploads replace that storage.
+     * setLayout copies the layout; getLayout borrows this buffer's stored copy.
+     * Construction, upload, binding and destruction require a live GL context.
+     */
 	class VertexBuffer {
 	public:
 		virtual ~VertexBuffer() {} ;
@@ -25,6 +32,14 @@ namespace Rubber {
 	};
 
 
+    /**
+     * Owns a GPU uint32_t index buffer; create transfers unique ownership.
+     * Allocation and upload sizes are bytes (supply whole uint32_t elements).
+     * getCount returns size / sizeof(uint32_t) index elements, suitable for an
+     * explicit indexed draw count. Input data is borrowed during the call;
+     * uploads replace GL storage and update the count. Keep a GL context live
+     * through construction, use and destruction.
+     */
 	class IndexBuffer {
 	public:
 		virtual ~IndexBuffer() {};
