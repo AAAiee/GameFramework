@@ -2,9 +2,9 @@
 
 ## Provenance and status
 
-The supplied Windows record `issue-25-807ecc77d666f75e3e704d114f731db9a3a99443-attempt-1` validates **807ecc77d666f75e3e704d114f731db9a3a99443**, the first #25 publication commit on accepted base **e3bf3fff0f651b072b1357f234b853b3e2a3eea6**. The input files are available under `/opt/editor-validation/`; raw logs and generated artifacts are not repository deliverables. `results.json` reports passed: all 41 steps exit 0, no timeouts, markers present. This repair cross-checked every focused and standalone-script log and all full-suite markers. It supersedes the earlier #24 record for combined-validation status; no pass is inferred from draft documentation.
+The supplied Windows record `issue-25-5cfa6a3613281049e4f20dbaab238bddbb678f99-attempt-2` validates **5cfa6a3613281049e4f20dbaab238bddbb678f99**, the #25 Inspector-coverage repair commit on accepted base **e3bf3fff0f651b072b1357f234b853b3e2a3eea6**. The input files are available under `/opt/editor-validation/`; raw logs and generated artifacts are not repository deliverables. `results.json` reports passed: all 41 steps exit 0, no timeouts, markers present. This repair cross-checked every focused and standalone-script log and all full-suite markers. It supersedes the first #25 publication record and earlier #24 record for combined-validation status; no pass is inferred from draft documentation.
 
-This repair adds Inspector input coverage to `entity-tags` / `editor-issue-16`. That **new coverage has not run on Windows**; the host must validate the repair commit. The recorded passes below apply to the exact preceding SHA, not to this repair. Human interactive ordinary editing remains unrun.
+The supplied run includes the Inspector input coverage added to `entity-tags` / `editor-issue-16`: both configurations passed menu and checkbox assertions against production ImGui widgets. This documentation-only reconciliation changes no production code, tests, source inclusion or build configuration. The recorded passes apply to **5cfa6a3613281049e4f20dbaab238bddbb678f99**, not a claimed execution of this later documentation commit. Human interactive ordinary editing remains unrun.
 
 | Supplied step | Debug | Release | Scope |
 | --- | --- | --- | --- |
@@ -14,7 +14,7 @@ This repair adds Inspector input coverage to `entity-tags` / `editor-issue-16`. 
 | Each of the 13 configured selectors | Exit 0, matching PASS | Exit 0, matching PASS | All focused selectors listed below |
 | Five separate issue scripts | Exit 0, matching PASS | Exit 0, matching PASS | `issue-12.ps1`, `issue-15.ps1`, `issue-16.ps1`, `issue-17.ps1`, `issue-18.ps1`, each launched separately |
 | Human interactive Editor session | No supplied observation | No supplied observation | Automated fixture evidence below is narrower |
-| This repair commit validation | Pending Windows host | Pending Windows host | Includes the added Inspector-input checks; Linux cannot execute authoritative MSVC/Win32/GL/ImGui acceptance |
+| Inspector-input repair (`5cfa6a3`) | Passed in supplied run | Passed in supplied run | Included in `entity-tags`, full suite and standalone `issue-16.ps1` |
 
 ## Exact supplied invocation
 
@@ -74,12 +74,12 @@ These are **automated runtime observations** from `regression-all-Debug.log` and
 | Zero / negative / subpixel viewport | Usable framebuffer and camera retained; New/Open used pixels or last usable dimensions | Same fixture; changed pixels reached target, events and camera, style minimum restored |
 | Long / percent tags | Empty, percent, UTF-8, 255/256 and 8192+ byte input retained; literal labels and row IDs checked | `entity-tags` / `editor-issue-16`, actual hierarchy ImGui input |
 | Selection / deletion | Rename retained expansion/selection; blank deselect, reselect and Delete Entity menu passed | Same fixture |
-| Minimize / restore | Debug: 3.00097 s minimized, 0 fixed updates, 180 ImGui frames; Release: 3.00041 s, 0, 180 | `minimize-restore` / `editor-issue-18`, real Win32 minimize/restore |
-| Restore pacing | First restore frame 0 updates; next 0.250034 s Debug / 0.250006 s Release gave 30 updates at 1/120 s | Same fixture, exercises real Application frame policy |
+| Minimize / restore | Debug: 3.00093 s minimized, 0 fixed updates, 180 ImGui frames; Release: 3.00045 s, 0, 180 | `minimize-restore` / `editor-issue-18`, real Win32 minimize/restore |
+| Restore pacing | First restore frame 0 updates; next 0.250059 s Debug / 0.250006 s Release gave 30 updates at 1/120 s | Same fixture, exercises real Application frame policy |
 | Scene API editing / rendering | Production panels rendered tagged Transform/Sprite/Camera/Visibility entity, one quad, matching camera/target; fixture edited tag, removed components and entity | `editor-issue-12`; component edits use the scene API and do not establish ordinary Inspector editing input |
-| Ordinary Inspector editing input | Unrun for this repair; no supplied pass | New `entity-tags` / `editor-issue-16` checks add Camera and Visibility via the actual menu, toggle Primary and visibility via production widgets, verify registry changes and retain selection before hierarchy deletion |
+| Ordinary Inspector editing input | Camera and Visibility added; Primary toggled, visibility hidden/restored; selection retained | `entity-tags` / `editor-issue-16` drives the actual Add Component menu and production checkbox widgets, with always-active registry and selection assertions; not exhaustive Inspector coverage |
 
-All five standalone scripts passed in both builds at the recorded #25 SHA. No human manual observations are supplied; those remain unrun, as does the new Inspector-input coverage in this repair. The Windows host executes acceptance for the repair and can append matching evidence after review. Do not mark a manual gate passed from screenshots in the READMEs or a source search.
+All five standalone scripts passed in both builds at the recorded #25 SHA. Inspector observations also appear in both focused `entity-tags` logs; both standalone `windows-issue-16` logs record exit 0 and the matching pass marker. No human manual observations are supplied; those remain unrun. The Windows host owns any subsequent acceptance execution and can append matching evidence after review. Do not mark a manual gate passed from screenshots in the READMEs or a source search.
 
 ## Focused coverage and limitations
 
@@ -91,15 +91,15 @@ SHA-256 identifies the supplied evidence files used by this publication; this is
 
 | File in the supplied #25 record | SHA-256 |
 | --- | --- |
-| `results.json` | `afab0d1e32cf796acc9232eb00b392c2e41bfb2e4e39d1fdea3d46987ee61ac5` |
-| `results.md` | `7ba996a077436078565827c61cd8ca48549c7ae7982f1d3a22752957cd4b37fd` |
+| `results.json` | `5f61faaf0bd190085dcfa8d4b153a576dc383dd1b44eb84c6ab4cc37fccf5d37` |
+| `results.md` | `e9d47c447402ce9a73ec64f5b63998cb72049fc1a33d34835022cfe0a050bbba` |
 | `plan.json` | `8b0e933d75cbffe4732efcc2ec7677ebd502625bdccc859693be05da8fea2b07` |
-| `generate.log` | `dd1ad43db5520749afb4fe1c482da6df9399222a0940240846cd97e94a283aae` |
-| `build-Debug.log` | `de5b1e55b03416e73eda899348dd2df1266d18f75fa9c5ada4fa2e63df5d50cd` |
-| `build-Release.log` | `01861b73241ba6c51d4e7514ce7466348ebbfa8dcf7c5fd57bfb454c0c09aa38` |
-| `regression-all-Debug.log` | `7279de2f27669852322aff7845d392059c5a39dbdd2bf533e8644067d6d63a18` |
-| `regression-all-Release.log` | `22fd6ed590c9ddaa835a0fbf2338659718d69e7a4ef83c3484c8eeffb7d2e106` |
+| `generate.log` | `1dfac1dac643f346a3538d02ef1a804c516a6364ed36f09187d3a5b843a59168` |
+| `build-Debug.log` | `15811af613453ea328c1b81f196326de210accb40682aa701718220737c4fdbb` |
+| `build-Release.log` | `b3d75e3852109994d67666015ace33a6f1cf3a15ab520bb5e27a11f03c53f926` |
+| `regression-all-Debug.log` | `d8a1e7d8ef2b43815d4bc3771774dbe58f5971f3b881a265801f8f06cea76edd` |
+| `regression-all-Release.log` | `ec51070829409b35b86e9b4a9319476185fa0f7bd87da4dc2849b70bb28d07cb` |
 
 ## Local #25 checks
 
-The initial publication reviewed all listed contract seams and their implementations, reconciled both local drafts, verified local Markdown targets and ran `git diff --check`. Its C++ changes were comment-only. This repair preserves those contracts and adds bounded, always-active Inspector-input assertions to the existing real ImGui panel fixture; it does not change production behavior, source inclusion or selector names. Local checks are recorded in [Tests/README.md](../../Tests/README.md#combined-validation-for-issue-25). Windows generation/build/runtime is unrun for this repair. No vendor implementation, generated output, public name, C++20/Premake/MSVC configuration, submodule pin or host scheduling file was changed; dependencies remain read-only, without downloads.
+The initial publication reviewed all listed contract seams and their implementations, reconciled both local drafts, verified local Markdown targets and ran `git diff --check`. Its C++ changes were comment-only. The Inspector-coverage repair preserved those contracts and added bounded, always-active assertions to the existing real ImGui panel fixture; its Windows generation/build/runtime passed in the supplied run above. This subsequent reconciliation changes only documentation and fingerprints. Local checks reverified all 41 supplied steps, every full-suite/focused/script marker, Inspector observation lines and evidence fingerprints, checked local Markdown file targets, and ran `git diff --check`. No Windows command was executed in this Linux container. Historical local compile checks are recorded in [Tests/README.md](../../Tests/README.md#combined-validation-for-issue-25). No vendor implementation, generated output, public name, C++20/Premake/MSVC configuration, submodule pin or host scheduling file was changed; dependencies remain read-only, without downloads.

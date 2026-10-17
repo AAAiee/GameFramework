@@ -5,16 +5,18 @@
 Use this section for the combined final-commit run. The per-ticket notes below
 retain historical local checks and pending statuses as of their individual
 changes; they are not the current combined status. The [evidence ledger](../docs/validation/spec-11.md)
-records supplied Windows passes at #25 commit `807ecc77d666f75e3e704d114f731db9a3a99443`:
+records supplied Windows passes at #25 commit `5cfa6a3613281049e4f20dbaab238bddbb678f99`:
 generation, x64 Debug/Release Rebuilds, full suites, all 13 selectors and all five
 standalone Windows scripts passed (41 steps, zero exits, no timeouts, markers
 present). Those are host observations, not Linux executions. Human interactive
-ordinary editing remains unrun. This repair extends `entity-tags` / `editor-issue-16`
+ordinary editing remains unrun. The validated repair extends `entity-tags` / `editor-issue-16`
 with real Inspector Add Component menu clicks and Camera Primary / Visibility
 checkbox input; registry and selection assertions remain active in Release.
-This added coverage and the repair commit's Windows acceptance await the host.
+Both builds' full-suite and focused logs record the Inspector observations;
+standalone issue-16 logs also confirm matching passes. This subsequent documentation-only reconciliation changes
+no code or tests and claims no Windows execution at its own commit.
 
-Local repair checks: `git diff --check` passed. A read-only evidence check verified
+Historical local Inspector-repair checks: `git diff --check` passed. A read-only evidence check verified
 all 41 supplied #25 steps, all full-suite/focused/script markers, zero exits and
 no timeouts. GCC C++20 `-fsyntax-only` checks of `EntityTagsCheck.cpp` and the
 production `SceneHierachyPanel.cpp` passed with Debug (`-O0 -g -DRB_DEBUG
@@ -24,8 +26,13 @@ historical F05 local check, that copy supplied MSVC literal suffix operators and
 the two dependent `template` keywords in dormant FSM headers; Debug mapped
 `__debugbreak()` to `__builtin_trap()` for syntax checking only. No accommodation
 was applied to repository sources. These checks do not establish MSVC linking,
-GL execution or Inspector behavior; the new runtime observation must come from
-the Windows host.
+GL execution or Inspector behavior; the runtime observations now come from
+the supplied matching-SHA Windows host logs.
+
+Local documentation-reconciliation checks: verified all 41 supplied steps, every
+full-suite/focused/script marker, Inspector observation lines and refreshed ledger
+fingerprints; checked local Markdown file targets and ran `git diff --check`. No
+Windows command was executed in this Linux container.
 
 Run from the repository root in Windows PowerShell with the existing initialized
 submodules and VS2022 MSVC installation. This task does not download dependencies.
@@ -93,7 +100,7 @@ a modal dialog on the input desktop. A compatible real OpenGL driver is required
 | --- | --- | --- |
 | `Tests/Windows/issue-12.ps1` | Editor attachment/frame rendering, supported components, tag edit and deletion | `PASS: editor-issue-12` |
 | `Tests/Windows/issue-15.ps1` | New/Unicode Save As/Open, cancel, overwrite decline/confirm, capacity rejection | `PASS: editor-issue-15` |
-| `Tests/Windows/issue-16.ps1` | Actual hierarchy input for long/percent/Unicode tags, stable row IDs, selection/deletion | `PASS: editor-issue-16` |
+| `Tests/Windows/issue-16.ps1` | Actual hierarchy input for long/percent/Unicode tags, stable row IDs, selection/deletion; Inspector Camera/Visibility additions and Primary/visibility checkbox edits | `PASS: editor-issue-16` |
 | `Tests/Windows/issue-17.ps1` | Fractional/zero viewport, real framebuffer/camera events, New/Open, style restoration | `PASS: editor-issue-17` |
 | `Tests/Windows/issue-18.ps1` | Native minimize/restore, suspended fixed updates, resumed 1/120s cadence without backlog | `PASS: editor-issue-18` |
 
