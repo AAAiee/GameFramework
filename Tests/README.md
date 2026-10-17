@@ -784,3 +784,84 @@ restores style; and real New/Open scene operations use integer pixels or the
 last usable framebuffer for fractional and unusable extents. These observations
 come from actual editor fixture assertions with real GL/ImGui backends on the
 private regression desktop. Human manual observations were not performed.
+
+## Minimize/restore (F07 / issue #18)
+
+`Regression.exe minimize-restore` runs the real Application fixed-update policy
+and an EditorLayer/window fixture. `editor-issue-18` runs those same checks and
+also emits `PASS: editor-issue-18`; the no-argument suite includes both markers.
+All existing selectors remain available. Exceptions and nonzero exits keep the
+checks active in Debug and Release.
+
+Application owns its window, timer and layer stack. The stack deletes the layer
+pointers still stored at destruction. Static window/timer accessors borrow these
+objects; EventManager/AssetManager accessors return shared ownership. Initial
+attachment runs once in reverse stack order, putting ImGui initialization before
+ordinary editor attachment. Fixed updates and ImGui callbacks traverse forward,
+ordinary layers before overlays. Push transfers ownership but does not attach a
+layer: late pushes require explicit attachment by the caller. Stack mutation
+during traversal and restarting a closed Application are unsupported. This fix
+does not redesign layer lifecycle or static-facility teardown.
+
+GameLoopTimer measures seconds. `getElapsedTime()` measures time since the current
+`startFrame()`. `waitForFrameEnd()` records that frame including its pacing wait;
+`getDeltaTime()` returns the last completed sample, or the target duration before
+the first completion. It is neither an average nor time since the last query.
+Application clears lag on minimized frames and discards the preceding minimized
+sample on restoration. Active samples continue to accumulate into 1/120-second
+updates, retaining fractional active lag. Window polling, buffer swaps, queued
+event dispatch and ImGui rendering retain their existing order, including while
+minimized. Active stalls retain the existing catch-up policy.
+
+The private `runFrame` seam is the frame body used by `Application::run`, and
+`updateFixedLayers` is its actual fixed-update policy. A narrow friend fixture
+checks half steps, three whole updates with a fractional remainder, either zero
+window extent, clearing preexisting lag, repeated five-second minimized samples,
+a five-second previous sample on restore, and immediate subsequent active work.
+No test copy of the policy or replacement timer is used.
+
+The same fixture explicitly attaches a production EditorLayer and drives real
+Application frames, including its timer, window polling, event dispatch, fixed
+updates and ImGui backends. It uses GLFW's native minimize/restore operations on
+Regression's private desktop. It requires both native iconification and delivered
+Application resize state, observes at least three wall-clock seconds with zero
+fixed updates and continuing ImGui frames, checks zero updates on the restoration
+frame, then verifies ordinary active-time update counts. Bounded transition
+waits fail if native events are unavailable. The fixture removes and destroys
+its own late-pushed layer afterward; the earlier completed editor fixture's
+render callback is inert after its scene is released, so the full suite can
+continue driving frames without changing Application lifecycle.
+
+Run the following after the existing Windows Debug/Release solution builds:
+
+```powershell
+foreach ($configuration in @('Debug', 'Release')) {
+    Push-Location ".\Binaries\windows-x86_64\$configuration\Regression"
+    try {
+        & '.\Regression.exe' minimize-restore
+        if ($LASTEXITCODE -ne 0) { throw "$configuration minimize-restore failed" }
+        & '.\Regression.exe'
+        if ($LASTEXITCODE -ne 0) { throw "$configuration complete suite failed" }
+    } finally { Pop-Location }
+    & '.\Tests\Windows\issue-18.ps1' -Configuration $configuration `
+        -BinaryRoot "$PWD\Binaries\windows-x86_64\$configuration"
+}
+```
+
+`Tests/Windows/issue-18.ps1` accepts the same absolute binary-root layouts as
+issue-17, runs `editor-issue-18` from its executable output folder, captures
+`issue-18.stdout.log`/`issue-18.stderr.log` there, and enforces a 60-second process
+timeout. It closes only its own process. The marker requires exit 0 and completed
+behavioral assertions. Regression fails closed if private-desktop isolation
+cannot initialize and never switches the user's input desktop. Successful logs
+record actual minimized seconds, ImGui frame count, restoration-frame updates,
+and subsequent active seconds/update count in `OBSERVED:` lines. The script
+prints these observations before its success marker for host evidence.
+
+Local evidence: `git diff --check` passed. A Linux GCC C++20 syntax-check attempt
+using the read-only dependency snapshots stopped on existing MSVC integer suffixes
+and dormant FSM dependent-template syntax. No dependency or vendor implementation
+was changed to bypass those constraints. This Linux environment cannot run the
+Windows window/GL fixture or authoritative MSVC Debug/Release checks. Actual
+multi-second minimize/restore observations and Windows results remain pending
+host execution; the expected observations above are assertions, not claimed runs.

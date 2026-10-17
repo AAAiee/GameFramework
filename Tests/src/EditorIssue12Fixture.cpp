@@ -78,6 +78,7 @@ namespace Rubber {
         }
 
         void onImGuiRender() override {
+            if (m_Completed) return;
             EditorLayer::onImGuiRender();
             ++m_Frames;
             require(m_Frames < 600, "Editor fixture timed out waiting for updates and viewport");

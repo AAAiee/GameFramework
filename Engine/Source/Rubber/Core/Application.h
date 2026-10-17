@@ -15,6 +15,15 @@ namespace Rubber
 	class AssetManager;
 
 
+	/** Owns the window, timer and LayerStack; the stack deletes layers still in it.
+	 * Static accessors borrow this single live Application's facilities. Ref accessors
+	 * share ownership; window/timer references must not outlive the Application.
+	 * Initial attachment runs once in reverse stack order, attaching the ImGui overlay
+	 * before ordinary layers. Updates and ImGui rendering run forward: layers, then overlays.
+	 * Push takes ownership but does not attach; late pushes are not automatically
+	 * attached. Do not mutate the stack during traversal. Lifecycle/teardown redesign
+	 * and restarting a closed Application are outside this API's contract.
+	 */
 	class  Application
 	{
 	public:
@@ -36,6 +45,10 @@ namespace Rubber
 	private:
 		Window& getWindowImpl();
 		void attachAll();
+		void runFrame(double& lag);
+		void updateFixedLayers(double delta, bool previousFrameMinimized, double& lag);
+		// First-party checks drive the exact frame and fixed-update policy used by run().
+		friend class MinimizeRestoreFixture;
 
 	private:
 		bool m_Runing = true;
