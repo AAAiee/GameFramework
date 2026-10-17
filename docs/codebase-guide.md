@@ -1,6 +1,6 @@
 # Rubber Engine and Editor: reading guide
 
-Reviewed against accepted base `e3bf3fff0f651b072b1357f234b853b3e2a3eea6` and the issue #25 contract-only patch. This incorporates the 2026-10-14 local guide and audit drafts, with historical/proposed statements rechecked against source. [The audit](codebase-improvement-plan.md) retains excluded defects; [combined evidence](validation/spec-11.md) separates supplied Windows observations from pending validation. No glossary term or new architecture decision is introduced.
+Reviewed against accepted base `e3bf3fff0f651b072b1357f234b853b3e2a3eea6` and the issue #25 contract publication. This incorporates the 2026-10-14 local guide and audit drafts, with historical/proposed statements rechecked against source. [The audit](codebase-improvement-plan.md) retains excluded defects; [combined evidence](validation/spec-11.md) separates supplied Windows observations from pending validation. No glossary term or new architecture decision is introduced.
 
 ## Start here
 
@@ -85,7 +85,7 @@ The current build is Premake-generated Visual Studio projects, C++20, Windows x6
 & '.\Vendor\Binaries\Premake\Windows\premake5.exe' --file=Build.lua vs2022
 ```
 
-Use the exact Debug/Release generation, Rebuild, full-suite, selector and editor-script commands in [Tests/README.md](../Tests/README.md#combined-validation-for-issue-25). [The evidence ledger](validation/spec-11.md) records supplied accepted-base passes and their limits. The original baseline failure and local F01 experiment are historical; the first-party Regression target now exists. No Windows run of the #25 documentation patch is claimed from this Linux environment.
+Use the exact Debug/Release generation, Rebuild, full-suite, selector and editor-script commands in [Tests/README.md](../Tests/README.md#combined-validation-for-issue-25). [The evidence ledger](validation/spec-11.md) records supplied #25 passes at `807ecc77d666f75e3e704d114f731db9a3a99443` and their limits. The original baseline failure and local F01 experiment are historical; the first-party Regression target now exists. Those host runs passed generation, both builds, all selectors and five standalone scripts. The repair adds Inspector-input checks whose Windows execution remains pending; human interactive ordinary editing is unrun.
 
 Run the editor from its generated output directory so relative `assets/` paths resolve to the copied fonts and shader. Generated projects and `Binaries/` are ignored build artifacts. Third-party source is under `Engine/RBVendor/` and `Vendor/`.
 

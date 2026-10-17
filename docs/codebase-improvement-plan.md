@@ -25,7 +25,7 @@ Static inspection of the accepted base and supplied runtime evidence are separat
 | F13 / #24 | Owned C strings and preserved unpack alignment | `gl-boundaries` |
 | F14 / #24 | Repeatable GL headers; pointer assertion before dereference | `gl-buffers` |
 
-[The reading guide](codebase-guide.md) maps the module contracts and documents actual serialization, borrowed entity identity, installed versus dormant systems, and context lifetimes. #25 changes comments and documentation only; no source-inclusion change requires project regeneration locally. The host reruns generation and combined builds for final evidence.
+[The reading guide](codebase-guide.md) maps the module contracts and documents actual serialization, borrowed entity identity, installed versus dormant systems, and context lifetimes. #25 publishes comments and documentation; its repair also extends the existing real ImGui panel fixture with Inspector menu and checkbox checks. No source-inclusion change requires project regeneration locally. The ledger records the first publication commit's successful combined Windows run; the host reruns generation, combined builds and runtime checks for the repair.
 
 ## Excluded findings retained from the audit
 

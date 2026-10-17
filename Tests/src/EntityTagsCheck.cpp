@@ -75,6 +75,8 @@ namespace Rubber {
             }
             std::cout << "OBSERVED: real hierarchy input retained empty, percent, UTF-8, 255/256 and 8192+ byte tags; labels and IDs checked\n";
 
+            editComponents();
+
             // Deselect via blank hierarchy space, then select the renamed row.
             click(ImVec2(hierarchy->Pos.x + 80, hierarchy->Pos.y + 200), 0);
             require(!m_Panel.m_SelectionContext, "Blank hierarchy click did not deselect");
@@ -160,6 +162,61 @@ namespace Rubber {
             frame();
             io.AddKeyEvent(ImGuiKey_Enter, false);
             frame();
+        }
+
+        /** Drive the production Inspector menus and check registry effects in all builds. */
+        void editComponents() {
+            require(!m_Entity.hasComponent<CameraComponent>()
+                && !m_Entity.hasComponent<VisibilityControlComponent>(),
+                "Inspector fixture must start without the components it adds");
+            addComponent(0);
+            require(m_Entity.hasComponent<CameraComponent>(),
+                "Inspector Add Component / Camera did not add a camera");
+            auto* property = ImGui::FindWindowByName("Property Channel");
+            const auto cameraHeader = property->GetID(reinterpret_cast<void*>(typeid(CameraComponent).hash_code()));
+            const bool wasPrimary = m_Entity.getComponent<CameraComponent>().isPrimary;
+            ImGui::ActivateItem(ImHashStr("Primary", 0, cameraHeader));
+            frame();
+            frame();
+            require(m_Entity.getComponent<CameraComponent>().isPrimary == !wasPrimary,
+                "Inspector Primary checkbox did not edit the camera");
+
+            addComponent(3);
+            require(m_Entity.hasComponent<VisibilityControlComponent>()
+                && m_Entity.getComponent<VisibilityControlComponent>().isVisible,
+                "Inspector Add Component / Visibility did not add a visible component");
+            const auto visibilityHeader = property->GetID(reinterpret_cast<void*>(typeid(VisibilityControlComponent).hash_code()));
+            ImGui::ActivateItem(ImHashStr("isVisible", 0, visibilityHeader));
+            frame();
+            frame();
+            require(!m_Entity.getComponent<VisibilityControlComponent>().isVisible,
+                "Inspector visibility checkbox did not hide the entity");
+            ImGui::ActivateItem(ImHashStr("isVisible", 0, visibilityHeader));
+            frame();
+            frame();
+            require(m_Entity.getComponent<VisibilityControlComponent>().isVisible,
+                "Inspector visibility checkbox did not restore visibility");
+            require(m_Panel.m_SelectionContext == m_Entity,
+                "Inspector component editing changed hierarchy selection");
+            Application::getEventManager()->dispatchAllEvents();
+            Application::getEventManager()->dispatchAllEvents();
+            std::cout << "OBSERVED: Inspector menus added Camera and Visibility; Primary and visibility checkboxes edited components through production widgets\n";
+        }
+
+        /** Open the real Add Component popup and click its zero-based menu row. */
+        void addComponent(unsigned row) {
+            auto* property = ImGui::FindWindowByName("Property Channel");
+            require(property && property->Active, "Inspector window missing");
+            ImGui::ActivateItem(property->GetID("Add Component"));
+            frame();
+            frame();
+            require(!GImGui->OpenPopupStack.empty(), "Inspector Add Component popup did not open");
+            auto* popup = GImGui->OpenPopupStack.back().Window;
+            require(popup && popup->Active, "Inspector Add Component popup is inactive");
+            click(ImVec2(popup->DC.CursorStartPos.x + 35,
+                popup->DC.CursorStartPos.y + ImGui::GetFontSize() * 0.5f
+                    + row * ImGui::GetTextLineHeightWithSpacing()), 0);
+            require(GImGui->OpenPopupStack.empty(), "Inspector component menu did not close after click");
         }
 
         /** Log the actual TreeNodeEx label and observe its submitted item ID. */

@@ -5,10 +5,27 @@
 Use this section for the combined final-commit run. The per-ticket notes below
 retain historical local checks and pending statuses as of their individual
 changes; they are not the current combined status. The [evidence ledger](../docs/validation/spec-11.md)
-records supplied Windows passes at accepted base `e3bf3fff0f651b072b1357f234b853b3e2a3eea6`,
-including full-suite editor observations. Final #25 generation, Debug/Release
-builds, regressions and all five standalone Windows scripts are pending the host.
-No authoritative Windows acceptance was run in the Linux documentation session.
+records supplied Windows passes at #25 commit `807ecc77d666f75e3e704d114f731db9a3a99443`:
+generation, x64 Debug/Release Rebuilds, full suites, all 13 selectors and all five
+standalone Windows scripts passed (41 steps, zero exits, no timeouts, markers
+present). Those are host observations, not Linux executions. Human interactive
+ordinary editing remains unrun. This repair extends `entity-tags` / `editor-issue-16`
+with real Inspector Add Component menu clicks and Camera Primary / Visibility
+checkbox input; registry and selection assertions remain active in Release.
+This added coverage and the repair commit's Windows acceptance await the host.
+
+Local repair checks: `git diff --check` passed. A read-only evidence check verified
+all 41 supplied #25 steps, all full-suite/focused/script markers, zero exits and
+no timeouts. GCC C++20 `-fsyntax-only` checks of `EntityTagsCheck.cpp` and the
+production `SceneHierachyPanel.cpp` passed with Debug (`-O0 -g -DRB_DEBUG
+-DRB_ENABLE_ASSERTS -DRB_PLATFORM_WINDOWS`) and Release (`-O2 -DNDEBUG -DRELEASE`)
+flags in a temporary source copy using `/opt/editor-dependencies`. As with the
+historical F05 local check, that copy supplied MSVC literal suffix operators and
+the two dependent `template` keywords in dormant FSM headers; Debug mapped
+`__debugbreak()` to `__builtin_trap()` for syntax checking only. No accommodation
+was applied to repository sources. These checks do not establish MSVC linking,
+GL execution or Inspector behavior; the new runtime observation must come from
+the Windows host.
 
 Run from the repository root in Windows PowerShell with the existing initialized
 submodules and VS2022 MSVC installation. This task does not download dependencies.

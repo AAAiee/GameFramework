@@ -2,17 +2,19 @@
 
 ## Provenance and status
 
-The supplied Windows record `issue-24-e3bf3fff0f651b072b1357f234b853b3e2a3eea6-attempt-1` validates accepted base **e3bf3fff0f651b072b1357f234b853b3e2a3eea6**, not the later #25 documentation commit. The input files are available to this task under `/opt/editor-validation/`; raw logs and generated artifacts are not repository deliverables. `results.json` reports passed, all 31 steps exit 0, no timeouts, markers present. This publication cross-checked that summary against every focused selector log and all full-suite markers and observations. It does not infer success from the earlier draft audit.
+The supplied Windows record `issue-25-807ecc77d666f75e3e704d114f731db9a3a99443-attempt-1` validates **807ecc77d666f75e3e704d114f731db9a3a99443**, the first #25 publication commit on accepted base **e3bf3fff0f651b072b1357f234b853b3e2a3eea6**. The input files are available under `/opt/editor-validation/`; raw logs and generated artifacts are not repository deliverables. `results.json` reports passed: all 41 steps exit 0, no timeouts, markers present. This repair cross-checked every focused and standalone-script log and all full-suite markers. It supersedes the earlier #24 record for combined-validation status; no pass is inferred from draft documentation.
+
+This repair adds Inspector input coverage to `entity-tags` / `editor-issue-16`. That **new coverage has not run on Windows**; the host must validate the repair commit. The recorded passes below apply to the exact preceding SHA, not to this repair. Human interactive ordinary editing remains unrun.
 
 | Supplied step | Debug | Release | Scope |
 | --- | --- | --- | --- |
 | Premake generation | Exit 0 (one shared generation) | Same projects | Existing Windows VS2022 configuration |
-| Solution Rebuild | Exit 0 | Exit 0 | Final accepted-base Engine, Editor and Regression together |
+| Solution Rebuild | Exit 0 | Exit 0 | Engine, Editor and Regression together at the recorded #25 SHA |
 | Regression with no arguments | Exit 0, all markers | Exit 0, all markers | Complete suite including genuine editor fixtures and native dialogs |
 | Each of the 13 configured selectors | Exit 0, matching PASS | Exit 0, matching PASS | All focused selectors listed below |
-| Five separate issue scripts | Unrun in this #24 record | Unrun in this #24 record | #24 plan has `windowsChecks: []`; fixture passes inside the full suite do not establish standalone script execution |
+| Five separate issue scripts | Exit 0, matching PASS | Exit 0, matching PASS | `issue-12.ps1`, `issue-15.ps1`, `issue-16.ps1`, `issue-17.ps1`, `issue-18.ps1`, each launched separately |
 | Human interactive Editor session | No supplied observation | No supplied observation | Automated fixture evidence below is narrower |
-| #25 final commit validation | Pending Windows host | Pending Windows host | Linux cannot execute authoritative MSVC/Win32/GL/ImGui acceptance |
+| This repair commit validation | Pending Windows host | Pending Windows host | Includes the added Inspector-input checks; Linux cannot execute authoritative MSVC/Win32/GL/ImGui acceptance |
 
 ## Exact supplied invocation
 
@@ -44,11 +46,24 @@ foreach ($configuration in @('Debug', 'Release')) {
 }
 ```
 
-The host bounded each process and checked its marker as well as exit code. [Tests/README.md](../../Tests/README.md#combined-validation-for-issue-25) provides the portable final-commit recipe including the five scripts, working directories and expected markers.
+The same record ran all five scripts in each configuration from the repository root, using this exact PowerShell executable and expanded argument values:
+
+```powershell
+Set-Location 'C:\FinalPolishedProjects\Editor-validate-12'
+$pwsh = 'C:\Program Files\WindowsApps\Microsoft.PowerShell_7.6.6.0_x64__8wekyb3d8bbwe\pwsh.exe'
+foreach ($configuration in @('Debug', 'Release')) {
+    foreach ($issue in @(12, 15, 16, 17, 18)) {
+        & $pwsh -NoProfile -File "C:\FinalPolishedProjects\Editor-validate-12\Tests\Windows\issue-$issue.ps1" -Configuration $configuration -BinaryRoot "C:\FinalPolishedProjects\Editor-validate-12\Binaries\windows-x86_64\$configuration"
+        if ($LASTEXITCODE -ne 0) { throw "$configuration issue-$issue failed" }
+    }
+}
+```
+
+Each `windows-issue-<issue>-<configuration>.log` contains its corresponding `PASS: editor-issue-<issue>` marker. The host bounded each process and checked its marker as well as exit code. [Tests/README.md](../../Tests/README.md#combined-validation-for-issue-25) provides the portable final-commit recipe including the five scripts, working directories and expected markers.
 
 ## Supplied editor observations
 
-These are **automated runtime observations** from `regression-all-Debug.log` and `regression-all-Release.log` at the accepted base. Inspection of fixtures confirms they use production EditorLayer/panels, actual GL/ImGui and native dialogs, with always-active exception oracles; no Release-disabled assertion supplies the behavioral pass. Regression creates a private desktop before UI and fails closed if isolation cannot initialize. The desktop is never switched to the user's input desktop. These fixtures do not certify arbitrary interactive workflows, glyph coverage, or excluded defects.
+These are **automated runtime observations** from `regression-all-Debug.log` and `regression-all-Release.log` at the recorded #25 SHA. Inspection of fixtures confirms they use production EditorLayer/panels, actual GL/ImGui and native dialogs, with always-active exception oracles; no Release-disabled assertion supplies the behavioral pass. Regression creates a private desktop before UI and fails closed if isolation cannot initialize. The desktop is never switched to the user's input desktop. These fixtures do not certify arbitrary interactive workflows, glyph coverage, or excluded defects.
 
 | Observation | Recorded result in both builds | Evidence scope |
 | --- | --- | --- |
@@ -59,11 +74,12 @@ These are **automated runtime observations** from `regression-all-Debug.log` and
 | Zero / negative / subpixel viewport | Usable framebuffer and camera retained; New/Open used pixels or last usable dimensions | Same fixture; changed pixels reached target, events and camera, style minimum restored |
 | Long / percent tags | Empty, percent, UTF-8, 255/256 and 8192+ byte input retained; literal labels and row IDs checked | `entity-tags` / `editor-issue-16`, actual hierarchy ImGui input |
 | Selection / deletion | Rename retained expansion/selection; blank deselect, reselect and Delete Entity menu passed | Same fixture |
-| Minimize / restore | Debug: 3.00098 s minimized, 0 fixed updates, 180 ImGui frames; Release: 3.00031 s, 0, 180 | `minimize-restore` / `editor-issue-18`, real Win32 minimize/restore |
-| Restore pacing | First restore frame 0 updates; next 0.250037 s Debug / 0.250008 s Release gave 30 updates at 1/120 s | Same fixture, exercises real Application frame policy |
-| Ordinary scene editing | Production panels rendered tagged Transform/Sprite/Camera/Visibility entity, one quad, matching camera/target; edited tag, removed components and entity | `editor-issue-12`; component edits use the fixture's real scene API, not all Inspector menu clicks |
+| Minimize / restore | Debug: 3.00097 s minimized, 0 fixed updates, 180 ImGui frames; Release: 3.00041 s, 0, 180 | `minimize-restore` / `editor-issue-18`, real Win32 minimize/restore |
+| Restore pacing | First restore frame 0 updates; next 0.250034 s Debug / 0.250006 s Release gave 30 updates at 1/120 s | Same fixture, exercises real Application frame policy |
+| Scene API editing / rendering | Production panels rendered tagged Transform/Sprite/Camera/Visibility entity, one quad, matching camera/target; fixture edited tag, removed components and entity | `editor-issue-12`; component edits use the scene API and do not establish ordinary Inspector editing input |
+| Ordinary Inspector editing input | Unrun for this repair; no supplied pass | New `entity-tags` / `editor-issue-16` checks add Camera and Visibility via the actual menu, toggle Primary and visibility via production widgets, verify registry changes and retain selection before hierarchy deletion |
 
-No human manual observations or final #25 script runs are supplied. They remain explicitly unrun here; the Windows host executes the configured acceptance and can append evidence after review. Do not mark a manual gate passed from screenshots in the READMEs or a source search.
+All five standalone scripts passed in both builds at the recorded #25 SHA. No human manual observations are supplied; those remain unrun, as does the new Inspector-input coverage in this repair. The Windows host executes acceptance for the repair and can append matching evidence after review. Do not mark a manual gate passed from screenshots in the READMEs or a source search.
 
 ## Focused coverage and limitations
 
@@ -73,17 +89,17 @@ F01–F14 map to selectors in [the audit inventory](../codebase-improvement-plan
 
 SHA-256 identifies the supplied evidence files used by this publication; this is provenance, not a replacement for logs or a future run:
 
-| File in the supplied #24 record | SHA-256 |
+| File in the supplied #25 record | SHA-256 |
 | --- | --- |
-| `results.json` | `c88bced4e32380d665a01535cbbf3c28a0b843ad939427348ac75ff086672ced` |
-| `results.md` | `3dbde056991a88b1e4bef22072c90c1105dbfdd70b7b87c09e34ffa8e7df6f8a` |
-| `plan.json` | `559d256b1f90dc5bd11da63a9d552bfaf2471cb8454d9ecdb6d5a3e124eba7e5` |
-| `generate.log` | `0098cca8e57e0b3dd77d91ea3ce067128d761b594e9b6a21167f54000377add3` |
-| `build-Debug.log` | `0f88393c773ca2a7c044722258d7931c30ad3e5c3040a363351ff17217767667` |
-| `build-Release.log` | `ac1ae34f2cf9725797c0acc4c87622dcdbb89df2a622fa519ae2e6199d2ace6f` |
-| `regression-all-Debug.log` | `4c9effcb9ab0b9646b84a890987d46efecb39aed134f9edf81864f70e8855f2a` |
-| `regression-all-Release.log` | `81919d79238ecda95714f8b8d76157fad2ff96980ea5b113c171e10fe237804b` |
+| `results.json` | `afab0d1e32cf796acc9232eb00b392c2e41bfb2e4e39d1fdea3d46987ee61ac5` |
+| `results.md` | `7ba996a077436078565827c61cd8ca48549c7ae7982f1d3a22752957cd4b37fd` |
+| `plan.json` | `8b0e933d75cbffe4732efcc2ec7677ebd502625bdccc859693be05da8fea2b07` |
+| `generate.log` | `dd1ad43db5520749afb4fe1c482da6df9399222a0940240846cd97e94a283aae` |
+| `build-Debug.log` | `de5b1e55b03416e73eda899348dd2df1266d18f75fa9c5ada4fa2e63df5d50cd` |
+| `build-Release.log` | `01861b73241ba6c51d4e7514ce7466348ebbfa8dcf7c5fd57bfb454c0c09aa38` |
+| `regression-all-Debug.log` | `7279de2f27669852322aff7845d392059c5a39dbdd2bf533e8644067d6d63a18` |
+| `regression-all-Release.log` | `22fd6ed590c9ddaa835a0fbf2338659718d69e7a4ef83c3484c8eeffb7d2e106` |
 
 ## Local #25 checks
 
-Source and documentation inspection only: reviewed all listed contract seams and the implementations they describe, reconciled both local drafts, verified local Markdown targets, and ran `git diff --check`. A token comparison after stripping comments/whitespace confirmed every changed C++ file retains identical non-comment tokens to the accepted base. No new runtime test was added for a comments-only patch; all existing selectors/scripts are preserved. No first-party behavior, source inclusion, vendor implementation, public name, C++20/Premake/MSVC configuration, generated output, submodule pin or host scheduling file was changed. Windows generation/build/runtime is unrun for this patch; dependencies were reused read-only, with no downloads.
+The initial publication reviewed all listed contract seams and their implementations, reconciled both local drafts, verified local Markdown targets and ran `git diff --check`. Its C++ changes were comment-only. This repair preserves those contracts and adds bounded, always-active Inspector-input assertions to the existing real ImGui panel fixture; it does not change production behavior, source inclusion or selector names. Local checks are recorded in [Tests/README.md](../../Tests/README.md#combined-validation-for-issue-25). Windows generation/build/runtime is unrun for this repair. No vendor implementation, generated output, public name, C++20/Premake/MSVC configuration, submodule pin or host scheduling file was changed; dependencies remain read-only, without downloads.
