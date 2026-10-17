@@ -23,8 +23,9 @@ void Rubber::LayerStack::pushLayer(Layer* layer)
 
 void Rubber::LayerStack::popLayer(Layer* layer)
 {
-	auto it = std::find(m_Layers.begin(), m_Layers.begin() + m_LayerInsertIndex, layer);
-	if (it != m_Layers.end())
+	const auto ordinaryEnd = m_Layers.begin() + m_LayerInsertIndex;
+	auto it = std::find(m_Layers.begin(), ordinaryEnd, layer);
+	if (it != ordinaryEnd)
 	{
        m_Layers.erase(it);
        m_LayerInsertIndex--;

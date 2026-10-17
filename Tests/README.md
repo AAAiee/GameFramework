@@ -865,3 +865,62 @@ was changed to bypass those constraints. This Linux environment cannot run the
 Windows window/GL fixture or authoritative MSVC Debug/Release checks. Actual
 multi-second minimize/restore observations and Windows results remain pending
 host execution; the expected observations above are assertions, not claimed runs.
+
+## Layer partition (F08 / issue #19)
+
+`Regression.exe layer-partition` exercises the production `LayerStack` without
+creating an Application or GL context. The no-argument suite also runs it.
+Premake's existing `src/**.cpp` glob includes the check in both Debug and Release;
+failures throw and exit nonzero, independent of `assert` or `NDEBUG`.
+`PASS: layer-partition` is printed only after all assertions pass. Existing
+selectors and private-desktop isolation remain available and unchanged.
+
+The check crosses zero, one and three ordinary layers with zero, one and three
+overlays, including empty and overlay-only stacks. Repeated missing-pointer pops
+and attempts to pop every overlay as an ordinary layer must preserve the entire
+pointer sequence. Ordinary insertions afterward must remain before all overlays.
+Separate cases remove a sole ordinary layer or the first, middle and last of
+three, verify the remaining order, repeat the now-absent pop and insert a
+replacement. Destruction counters verify that a pop leaves its object alive, stack destruction deletes
+only retained objects, and the caller can delete the popped object afterward.
+
+`LayerStack` owns pushed pointers and deletes those still stored at stack
+destruction. A successful `popLayer` or `popOverlay` removes stack ownership
+without deleting the object; the caller takes responsibility for its lifetime.
+`popLayer` searches only ordinary layers, so an absent pointer or an overlay
+pointer is a no-op. Stack operations do not attach or detach objects. Attachment,
+detachment and destruction behavior are otherwise unchanged.
+
+After rebuilding the existing Windows solution in both configurations, run all
+configured selectors and the complete suite from each output directory:
+
+```powershell
+foreach ($configuration in @('Debug', 'Release')) {
+    Push-Location ".\Binaries\windows-x86_64\$configuration\Regression"
+    try {
+        foreach ($selector in @('scene-hooks', 'camera-inverse', 'renderer-batches',
+                'entity-tags', 'viewport-pixels', 'minimize-restore', 'layer-partition')) {
+            & '.\Regression.exe' $selector
+            if ($LASTEXITCODE -ne 0) { throw "$configuration $selector failed: $LASTEXITCODE" }
+        }
+        & '.\Regression.exe'
+        if ($LASTEXITCODE -ne 0) { throw "$configuration complete suite failed: $LASTEXITCODE" }
+    } finally { Pop-Location }
+}
+```
+
+Every selector must emit its matching `PASS: <selector>` and exit 0. Issue #19
+has no additional configured Windows UI script. Windows/MSVC builds, the complete
+suite and configured selector runs remain pending execution by the Windows host;
+Linux standalone checks do not establish that acceptance.
+
+Local evidence: a temporary standalone C++20 driver compiled the new check with
+production `Layer.cpp` and `LayerStack.cpp`, using GCC `-O0 -g -DRB_DEBUG
+-DRB_ENABLE_ASSERTS -DRB_PLATFORM_WINDOWS` and `-O2 -DNDEBUG -DRELEASE`.
+Both binaries printed `PASS: layer-partition` and exited 0. The same driver and
+check linked against the original LayerStack implementation failed the order
+assertion with exit 1. Compilation used the read-only spdlog dependency snapshot
+and a temporary forced-include literal operator for the unchanged MSVC `0ui32`
+profiler initializer; repository and vendor files were not adapted for Linux.
+These runs exercise actual stack code and the regression oracle, not Windows
+Regression's entry point or its UI isolation. `git diff --check` also passed.
