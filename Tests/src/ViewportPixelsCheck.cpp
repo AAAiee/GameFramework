@@ -134,7 +134,10 @@ namespace Rubber {
                 auto& style = ImGui::GetStyle();
                 const float previous = style.WindowMinSize.x;
                 const auto flags = ImGui::GetIO().ConfigFlags;
-                for (bool docking : {false, true}) {
+                // The real backend enables docking before its first frame. The
+                // pinned ImGui rejects enabling it for the first time on frame
+                // two, so cover both paths starting from that production state.
+                for (bool docking : {true, false, true}) {
                     if (docking) ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
                     else ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_DockingEnable;
                     style.WindowMinSize.x = 137.25f;
