@@ -97,3 +97,45 @@ still pending: retain both `UnitTests/issue-29` log/report directories and the
 matching final candidate SHA when the host executes the documented commands.
 Existing Regression/UI scripts, isolation, dependencies, vendor files, workflows
 and the owner's #28 work are unchanged by this repair. `git diff --check` passed.
+
+## Second review: host execution blocker
+
+The second supplied report identifies candidate
+`38cec3eba9b66d780f8074118a56584f6cf6d1ab` in
+`/opt/editor-validation/issue-29-38cec3eba9b66d780f8074118a56584f6cf6d1ab-attempt-2/results.json`.
+Read-only inspection confirms all 41 checks exited 0, did not time out and
+satisfied their markers. Its `plan.json` still lists only the 13 Regression
+selectors and five UI scripts. Neither the plan nor the results includes
+`Tests/Windows/unit-tests.ps1`, a UnitTests run, or a failure-probe run.
+The report's overall PASS therefore does not satisfy C5. The first repair's
+script was not executed by this host plan; no native script failure is reported.
+
+The remaining correction belongs to host scheduling. After generation, the host
+must execute the following **additional** stages in its prepared candidate
+worktree, sequentially, using its existing PowerShell and MSBuild executables:
+
+| Stage | Script arguments after `-NoProfile -File Tests/Windows/unit-tests.ps1` | Required output and exit |
+| --- | --- | --- |
+| `unit-tests-Debug` | `-Configuration Debug -BinaryRoot <absolute worktree>/Binaries/windows-x86_64/Debug -MSBuild <absolute MSBuild.exe>` | `PASS: unit-tests-Debug`, exit 0 |
+| `unit-tests-Release` | `-Configuration Release -BinaryRoot <absolute worktree>/Binaries/windows-x86_64/Release -MSBuild <absolute MSBuild.exe>` | `PASS: unit-tests-Release`, exit 0 |
+
+Quote absolute paths containing spaces. Allow 900 seconds for each outer stage:
+the script independently bounds its three builds to 180 seconds each and six
+executable runs to 30 seconds each. A normal 41-stage host report plus these two
+stages has 43 stages. Keep the existing Regression/UI stages and their isolation
+unchanged. Preserve each configuration's `UnitTests/issue-29` evidence directory,
+including the candidate SHA, passing runs, failing console/JUnit runs and final
+passing runs. Require both script markers and zero exits, and review the nested
+logs against C5 before claiming acceptance. Run these stages against the final
+candidate commit, not only the earlier implementation SHA.
+
+The Linux implementer cannot run MSVC or Windows PowerShell here and cannot
+establish C5 by another local run. Host scheduling, AFK workflow files and
+issue-tracker state remain outside this repair. No assertion is weakened and no
+Windows pass is claimed. This handoff documents an external execution blocker;
+it does not resolve C5. The implementation and acceptance script are preserved.
+
+Local handoff validation: parsed the supplied plan/results and checked its SHA,
+all 41 exits, timeout flags and markers, and the absence of UnitTests stages;
+verified both vendored SHA-256 checksums, affected Markdown file targets and
+`git diff --check`. This repair changes only documentation.

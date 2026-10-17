@@ -88,6 +88,10 @@ are required **in addition to** the existing host Regression/UI plan: a solution
 build or passing Regression camera selector does not execute doctest. A retry
 replaces its stage evidence; retain each completed run with its candidate SHA.
 No dependency downloads or additional worktree preparation are required.
+The supplied 41-stage host plan omits these two invocations. The host must
+schedule them explicitly (43 stages with the existing plan), allow 900 seconds
+per outer script invocation, and retain their nested evidence. See the
+[second-review handoff](../docs/validation/issue-29.md#second-review-host-execution-blocker).
 
 This target adds no UI or Regression acceptance replacement. Continue the full
 Regression suite, all 13 configured selectors and all five existing Windows
