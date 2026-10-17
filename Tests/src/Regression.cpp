@@ -19,6 +19,7 @@
 #include "LayerPartitionCheck.h"
 #include "EventChecks.h"
 #include "FontAtlasCheck.h"
+#include "AtlasPlaceholdersCheck.h"
 #include <windows.h>
 
 namespace {
@@ -90,8 +91,8 @@ namespace {
 }
 
 int main(int argc, char** argv) {
-    if (argc > 2 || (argc == 2 && (std::string_view(argv[1]) != "scene-hooks" && std::string_view(argv[1]) != "editor-issue-12" && std::string_view(argv[1]) != "camera-inverse" && std::string_view(argv[1]) != "renderer-batches" && std::string_view(argv[1]) != "editor-issue-15" && std::string_view(argv[1]) != "entity-tags" && std::string_view(argv[1]) != "editor-issue-16" && std::string_view(argv[1]) != "viewport-pixels" && std::string_view(argv[1]) != "editor-issue-17" && std::string_view(argv[1]) != "minimize-restore" && std::string_view(argv[1]) != "editor-issue-18" && std::string_view(argv[1]) != "layer-partition" && std::string_view(argv[1]) != "typed-events" && std::string_view(argv[1]) != "event-names" && std::string_view(argv[1]) != "font-atlas"))) {
-        std::cerr << "Usage: Regression.exe [scene-hooks|editor-issue-12|camera-inverse|renderer-batches|editor-issue-15|entity-tags|editor-issue-16|viewport-pixels|editor-issue-17|minimize-restore|editor-issue-18|layer-partition|typed-events|event-names|font-atlas]\n";
+    if (argc > 2 || (argc == 2 && (std::string_view(argv[1]) != "scene-hooks" && std::string_view(argv[1]) != "editor-issue-12" && std::string_view(argv[1]) != "camera-inverse" && std::string_view(argv[1]) != "renderer-batches" && std::string_view(argv[1]) != "editor-issue-15" && std::string_view(argv[1]) != "entity-tags" && std::string_view(argv[1]) != "editor-issue-16" && std::string_view(argv[1]) != "viewport-pixels" && std::string_view(argv[1]) != "editor-issue-17" && std::string_view(argv[1]) != "minimize-restore" && std::string_view(argv[1]) != "editor-issue-18" && std::string_view(argv[1]) != "layer-partition" && std::string_view(argv[1]) != "typed-events" && std::string_view(argv[1]) != "event-names" && std::string_view(argv[1]) != "font-atlas" && std::string_view(argv[1]) != "atlas-placeholders"))) {
+        std::cerr << "Usage: Regression.exe [scene-hooks|editor-issue-12|camera-inverse|renderer-batches|editor-issue-15|entity-tags|editor-issue-16|viewport-pixels|editor-issue-17|minimize-restore|editor-issue-18|layer-partition|typed-events|event-names|font-atlas|atlas-placeholders]\n";
         return 2;
     }
     try {
@@ -134,6 +135,10 @@ int main(int argc, char** argv) {
         Rubber::Application application("Rubber regression");
         glfwDefaultWindowHints();
         glfwHideWindow(static_cast<GLFWwindow*>(Rubber::Application::getWindow().getNativeWindow()));
+        if (argc == 1 || std::string_view(argv[1]) == "atlas-placeholders") {
+            Rubber::checkAtlasPlaceholders();
+            std::cout << "PASS: atlas-placeholders\n";
+        }
         if (argc == 1 || std::string_view(argv[1]) == "scene-hooks") {
             checkSceneHooks();
             std::cout << "PASS: scene-hooks\n";

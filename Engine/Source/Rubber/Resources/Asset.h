@@ -11,6 +11,9 @@ namespace Rubber{
 		AnimationSpriteSheet
 	};
 
+	// Name-derived asset lookup key (FNV-1a, zero remapped to one).
+	// Not an entt entity identity or a lifetime/validity guarantee; hash collisions
+	// and duplicate names are not resolved by this handle.
 	struct AssetHandle {
 		uint64_t handler = INVALID_HANDLER;
 		static constexpr uint64_t INVALID_HANDLER = 0ui64;

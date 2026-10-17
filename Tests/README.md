@@ -1078,3 +1078,85 @@ No dependency downloads or vendor edits were needed. These runs exercise the
 same check function used by Regression, but do not validate its Windows entry
 point, private desktop, MSVC configuration, or the complete suite.
 `git diff --check` passed.
+
+## Animation atlas placeholder slots (F12 / issue #22)
+
+`Regression.exe atlas-placeholders` uses the existing hidden Application and real
+OpenGL 4.5 context, on Regression's private Windows desktop. It calls the actual
+`AssetManager::loadAsset` / `AssetImporter` / `TextureImporter` path and then
+resolves every frame through `AnimationAtlas::getTextureAtIndex`. Eight three-frame
+fixtures cover missing first, middle, last, all, multiple, and no images. A narrow
+friend check inspects exact slot count and handle order without adding public API.
+Each case must have exactly the declared `frameCount` entries. The check verifies
+registered atlas/frame metadata, every frame's intended name-derived handle,
+shared fallback pointer identity across missing slots and managers, distinct
+present-image imports, texture dimensions, and actual GPU pixels read back with
+`glGetTextureImage`. Exceptions fail both Debug and Release. Its success marker
+is printed only after all cases pass; no arguments still run the complete suite.
+
+The fixtures write complete 2x2 RGBA PNGs with distinct solid frame colors beneath
+the executable working directory and remove them on exit. RGBA rows are eight
+bytes, and library paths use owned, terminated strings. They require neither the
+separately ticketed F13 RGB unpack-alignment correction nor its bounded-string
+boundary changes. The existing Premake source glob includes the new check.
+No additional Windows UI script is configured for this issue; every previous
+selector and private-desktop isolation remain available.
+
+`AssetHandle` is a name-derived FNV-1a asset lookup key, with zero remapped to one;
+it is separate from an Entity's scene/registry identity. A nonzero handle does not
+prove registration or extend any lifetime. The existing duplicate-name assertion
+and hash-collision limitations remain. AssetManager retains shared asset ownership
+and copies metadata on registration; it does not populate `Asset::Handle` as a
+separate entity identity. Atlas frames copy these lookup handles in insertion
+order: file `i.png` occupies zero-based slot `i - 1`, even when absent. A missing
+file registers its declared texture metadata with the existing shared fallback
+before appending that handle; real images retain the normal texture importer.
+
+AnimationAtlas and AnimationSpriteSheet borrow their AssetManager through a raw
+pointer. Keep it alive through resource use and frame lookup; retaining an atlas
+`Ref` alone does not retain its manager. Frame lookup requires an in-range index
+and registered texture handle, and returns shared texture ownership. In the check,
+atlases and ordinary textures are released before their managers, while the GL
+context is live. The fallback remains a function-local, process-lived static
+texture: it can outlive the context and attempt GL deletion after context teardown,
+and it is unsuitable for context recreation. That existing ownership defect is
+explicitly deferred. This change does not activate dormant animation systems or
+redesign fallback, asset-manager, renderer, or Application lifetimes.
+
+After the existing Windows Debug/Release Rebuild commands, run every configured
+selector and the complete suite from each Regression output directory:
+
+```powershell
+foreach ($configuration in @('Debug', 'Release')) {
+    Push-Location ".\Binaries\windows-x86_64\$configuration\Regression"
+    try {
+        foreach ($selector in @('scene-hooks', 'camera-inverse', 'renderer-batches',
+                'entity-tags', 'viewport-pixels', 'minimize-restore', 'layer-partition',
+                'typed-events', 'event-names', 'font-atlas', 'atlas-placeholders')) {
+            & '.\Regression.exe' $selector
+            if ($LASTEXITCODE -ne 0) { throw "$configuration $selector failed: $LASTEXITCODE" }
+        }
+        & '.\Regression.exe'
+        if ($LASTEXITCODE -ne 0) { throw "$configuration complete suite failed: $LASTEXITCODE" }
+    } finally { Pop-Location }
+}
+```
+
+Each selector must exit 0 and print its matching `PASS: <selector>` after passing.
+Authoritative Windows/MSVC Debug and Release builds, importer/atlas/asset-manager
+checks with the compatible GL context, and the complete suite remain pending
+execution by the Windows host. No successful GL or Windows runtime result is
+claimed by the Linux implementation.
+
+Local evidence: GCC C++20 syntax checks passed for `AtlasPlaceholdersCheck.cpp`,
+production `TextureImporter.cpp`, and `AnimationAtlas.cpp` with `-O0 -g -DRB_DEBUG
+-DRB_ENABLE_ASSERTS` and `-O2 -DNDEBUG -DRELEASE`. A temporary driver included the
+check's actual embedded PNG arrays and decoded all three using the read-only
+`/opt/editor-dependencies/stb_image` implementation. Both builds verified 2x2
+size, four channels, and every expected pixel, and exited 0. Compilation reused
+the read-only dependency headers, temporary literal operators for the unchanged
+MSVC `ui16/ui32/ui64` suffixes, and a Debug-only `__debugbreak()` mapping to
+`__builtin_trap()`. No repository/vendor portability changes or downloads were
+needed. These are syntax and fixture-decoding checks, not execution of the atlas
+GL assertions, Windows Regression entry point, or complete suite.
+`git diff --check` passed.

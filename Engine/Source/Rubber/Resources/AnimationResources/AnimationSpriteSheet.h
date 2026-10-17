@@ -9,6 +9,8 @@ namespace Rubber {
 	class SubTexture2D;
 	class AssetManager;
 
+	// Borrows its AssetManager; keep the manager alive for all resource lookups.
+	// Returned subtextures share texture ownership. This does not own the manager.
 	class AnimationSpriteSheet: public Asset {
 	public:
 		AnimationSpriteSheet() = default;
