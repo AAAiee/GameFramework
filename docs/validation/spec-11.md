@@ -2,9 +2,9 @@
 
 ## Provenance and status
 
-The supplied Windows record `issue-25-5cfa6a3613281049e4f20dbaab238bddbb678f99-attempt-2` validates **5cfa6a3613281049e4f20dbaab238bddbb678f99**, the #25 Inspector-coverage repair commit on accepted base **e3bf3fff0f651b072b1357f234b853b3e2a3eea6**. The input files are available under `/opt/editor-validation/`; raw logs and generated artifacts are not repository deliverables. `results.json` reports passed: all 41 steps exit 0, no timeouts, markers present. This repair cross-checked every focused and standalone-script log and all full-suite markers. It supersedes the first #25 publication record and earlier #24 record for combined-validation status; no pass is inferred from draft documentation.
+The supplied Windows record `issue-25-2f06a8e8bcd59e45e7a459eded58993b547bae5a-attempt-3` validates **2f06a8e8bcd59e45e7a459eded58993b547bae5a**, the #25 documentation reconciliation containing the Inspector-coverage repair on accepted base **e3bf3fff0f651b072b1357f234b853b3e2a3eea6**. The input files are available under `/opt/editor-validation/`; raw logs and generated artifacts are not repository deliverables. `results.json` reports passed: all 41 steps exit 0, no timeouts, markers present. This reconciliation cross-checked every focused and standalone-script log and all full-suite markers. It supersedes the first #25 publication record and earlier #24 record for combined-validation status; no pass is inferred from draft documentation.
 
-The supplied run includes the Inspector input coverage added to `entity-tags` / `editor-issue-16`: both configurations passed menu and checkbox assertions against production ImGui widgets. This documentation-only reconciliation changes no production code, tests, source inclusion or build configuration. The recorded passes apply to **5cfa6a3613281049e4f20dbaab238bddbb678f99**, not a claimed execution of this later documentation commit. Human interactive ordinary editing remains unrun.
+The supplied run includes the Inspector input coverage added to `entity-tags` / `editor-issue-16`: both configurations passed menu and checkbox assertions against production ImGui widgets. This documentation-only reconciliation changes no production code, tests, source inclusion or build configuration. The recorded passes apply to **2f06a8e8bcd59e45e7a459eded58993b547bae5a**. Final acceptance of this reconciliation is recorded separately in the matching-commit host report described below. Human interactive ordinary editing remains unrun.
 
 | Supplied step | Debug | Release | Scope |
 | --- | --- | --- | --- |
@@ -14,7 +14,35 @@ The supplied run includes the Inspector input coverage added to `entity-tags` / 
 | Each of the 13 configured selectors | Exit 0, matching PASS | Exit 0, matching PASS | All focused selectors listed below |
 | Five separate issue scripts | Exit 0, matching PASS | Exit 0, matching PASS | `issue-12.ps1`, `issue-15.ps1`, `issue-16.ps1`, `issue-17.ps1`, `issue-18.ps1`, each launched separately |
 | Human interactive Editor session | No supplied observation | No supplied observation | Automated fixture evidence below is narrower |
-| Inspector-input repair (`5cfa6a3`) | Passed in supplied run | Passed in supplied run | Included in `entity-tags`, full suite and standalone `issue-16.ps1` |
+| Inspector-input repair (included at `2f06a8e`) | Passed in supplied run | Passed in supplied run | Included in `entity-tags`, full suite and standalone `issue-16.ps1` |
+
+## Final acceptance record
+
+The checkpoint above is a completed historical run, not the identity of every
+later documentation commit. The Windows host writes the final reconciliation's
+report to `.sandcastle/logs/spec-11/issue-25-final/results.json` and `results.md`
+in the Editor checkout, then publishes that report and the full reviewed SHA
+on [issue #25](https://github.com/AAAiee/GameFramework/issues/25). The report's
+`commit` field must equal the candidate HEAD; `status` must be `passed`, and all
+41 checks must exit 0 without timeouts and with required markers present. The
+reviewer receives that exact report. A previous checkpoint cannot substitute
+for it. Human interactive checks remain unrun.
+
+The final run uses this command from `C:\FinalPolishedProjects\Editor`:
+
+```powershell
+pwsh.exe -NoProfile -File Scripts/Validate-Windows.ps1 `
+    -Worktree C:/FinalPolishedProjects/Editor-validate-12 `
+    -BuildTarget Rebuild `
+    -PlanPath .sandcastle/logs/spec-11/issue-25-2f06a8e8bcd59e45e7a459eded58993b547bae5a-attempt-3/plan.json `
+    -ReportPath .sandcastle/logs/spec-11/issue-25-final/results.json
+```
+
+It executes the same commands, selectors and scripts expanded below. Its exact
+commit and outcomes are captured after execution in the host report and issue
+comment, which can record a commit without changing that commit. Keeping final
+acceptance there avoids a self-referential requirement to embed a document's
+own Git hash in its contents. No pass is inferred before this report exists.
 
 ## Exact supplied invocation
 
@@ -74,8 +102,8 @@ These are **automated runtime observations** from `regression-all-Debug.log` and
 | Zero / negative / subpixel viewport | Usable framebuffer and camera retained; New/Open used pixels or last usable dimensions | Same fixture; changed pixels reached target, events and camera, style minimum restored |
 | Long / percent tags | Empty, percent, UTF-8, 255/256 and 8192+ byte input retained; literal labels and row IDs checked | `entity-tags` / `editor-issue-16`, actual hierarchy ImGui input |
 | Selection / deletion | Rename retained expansion/selection; blank deselect, reselect and Delete Entity menu passed | Same fixture |
-| Minimize / restore | Debug: 3.00093 s minimized, 0 fixed updates, 180 ImGui frames; Release: 3.00045 s, 0, 180 | `minimize-restore` / `editor-issue-18`, real Win32 minimize/restore |
-| Restore pacing | First restore frame 0 updates; next 0.250059 s Debug / 0.250006 s Release gave 30 updates at 1/120 s | Same fixture, exercises real Application frame policy |
+| Minimize / restore | Debug: 3.00103 s minimized, 0 fixed updates, 180 ImGui frames; Release: 3.00042 s, 0, 180 | `minimize-restore` / `editor-issue-18`, real Win32 minimize/restore |
+| Restore pacing | First restore frame 0 updates; next 0.250026 s Debug / 0.250007 s Release gave 30 updates at 1/120 s | Same fixture, exercises real Application frame policy |
 | Scene API editing / rendering | Production panels rendered tagged Transform/Sprite/Camera/Visibility entity, one quad, matching camera/target; fixture edited tag, removed components and entity | `editor-issue-12`; component edits use the scene API and do not establish ordinary Inspector editing input |
 | Ordinary Inspector editing input | Camera and Visibility added; Primary toggled, visibility hidden/restored; selection retained | `entity-tags` / `editor-issue-16` drives the actual Add Component menu and production checkbox widgets, with always-active registry and selection assertions; not exhaustive Inspector coverage |
 
@@ -91,14 +119,14 @@ SHA-256 identifies the supplied evidence files used by this publication; this is
 
 | File in the supplied #25 record | SHA-256 |
 | --- | --- |
-| `results.json` | `5f61faaf0bd190085dcfa8d4b153a576dc383dd1b44eb84c6ab4cc37fccf5d37` |
-| `results.md` | `e9d47c447402ce9a73ec64f5b63998cb72049fc1a33d34835022cfe0a050bbba` |
+| `results.json` | `68cea177b4485d6a5ac54c1539ec2abf136f0471227db9bf9b7c87f7169bfd9c` |
+| `results.md` | `20c02996d96f29b46ca6b608091e5fd39054d2d31f63470115e1d8e54c51689e` |
 | `plan.json` | `8b0e933d75cbffe4732efcc2ec7677ebd502625bdccc859693be05da8fea2b07` |
-| `generate.log` | `1dfac1dac643f346a3538d02ef1a804c516a6364ed36f09187d3a5b843a59168` |
-| `build-Debug.log` | `15811af613453ea328c1b81f196326de210accb40682aa701718220737c4fdbb` |
-| `build-Release.log` | `b3d75e3852109994d67666015ace33a6f1cf3a15ab520bb5e27a11f03c53f926` |
-| `regression-all-Debug.log` | `d8a1e7d8ef2b43815d4bc3771774dbe58f5971f3b881a265801f8f06cea76edd` |
-| `regression-all-Release.log` | `ec51070829409b35b86e9b4a9319476185fa0f7bd87da4dc2849b70bb28d07cb` |
+| `generate.log` | `cad4b70ef114c2f4be0dea8fce59d47818130bb409fee27261d4e93475cf0574` |
+| `build-Debug.log` | `0a4c89ac0977e3ab5c2a81fc6dc4d8c3c2354816db6cdbc7702509bf93748ebc` |
+| `build-Release.log` | `a76975e44433b7428c8893f57c05473439564417072e6bae9ef1074872396584` |
+| `regression-all-Debug.log` | `b0d4338b2ffc7b224455096a123addd0a38b1b8a0f8c8da0c05e10663c6e9317` |
+| `regression-all-Release.log` | `2187d412d7f047712f36c41917c7d89dec0dcd5ade9a68af87e8b2cc91342ea5` |
 
 ## Local #25 checks
 

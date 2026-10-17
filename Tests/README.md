@@ -5,7 +5,7 @@
 Use this section for the combined final-commit run. The per-ticket notes below
 retain historical local checks and pending statuses as of their individual
 changes; they are not the current combined status. The [evidence ledger](../docs/validation/spec-11.md)
-records supplied Windows passes at #25 commit `5cfa6a3613281049e4f20dbaab238bddbb678f99`:
+records supplied Windows passes at #25 commit `2f06a8e8bcd59e45e7a459eded58993b547bae5a`:
 generation, x64 Debug/Release Rebuilds, full suites, all 13 selectors and all five
 standalone Windows scripts passed (41 steps, zero exits, no timeouts, markers
 present). Those are host observations, not Linux executions. Human interactive
@@ -13,8 +13,10 @@ ordinary editing remains unrun. The validated repair extends `entity-tags` / `ed
 with real Inspector Add Component menu clicks and Camera Primary / Visibility
 checkbox input; registry and selection assertions remain active in Release.
 Both builds' full-suite and focused logs record the Inspector observations;
-standalone issue-16 logs also confirm matching passes. This subsequent documentation-only reconciliation changes
-no code or tests and claims no Windows execution at its own commit.
+standalone issue-16 logs also confirm matching passes. This documentation-only
+reconciliation changes no code or tests. The ledger's Final acceptance record
+identifies the separate exact-commit host report and issue #25 publication;
+that report must match the final candidate before review and merge.
 
 Historical local Inspector-repair checks: `git diff --check` passed. A read-only evidence check verified
 all 41 supplied #25 steps, all full-suite/focused/script markers, zero exits and
