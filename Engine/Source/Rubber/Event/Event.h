@@ -4,12 +4,11 @@
 
 namespace Rubber {
 
-    //TODO:CURRENTLY this is implemented with a immediately handled event system,
-    //To make a queue buffer in the future
+    // Events support synchronous typed dispatch and copied queued delivery through
+    // EventManager; EventBus owns named subscriptions, not event payloads.
     // TODO: currently hard coded the  Event Type for each type: considering using
     // hashed string 
     // TODO:: considering using the variant class to handle event argument
-    // TODO:: add event handler? event mananger, eventually event system incorporate ECS
 
     template <typename T>
     inline constexpr std::underlying_type_t<T> toUnderType(T enumarator)

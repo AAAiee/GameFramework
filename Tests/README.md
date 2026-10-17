@@ -924,3 +924,80 @@ and a temporary forced-include literal operator for the unchanged MSVC `0ui32`
 profiler initializer; repository and vendor files were not adapted for Linux.
 These runs exercise actual stack code and the regression oracle, not Windows
 Regression's entry point or its UI isolation. `git diff --check` also passed.
+
+## Typed events and exact subscriber names (F09/F10 / issue #20)
+
+`typed-events` instantiates production `EventManager::dispatchEvent` for
+`MouseReleasedEvent`. It checks pressed/released static and instance identities,
+exactly one callback per immediate call, the matching return value, and handled
+status for both consuming and nonconsuming callbacks (including clearing a prior
+handled state). It also enqueues a local event that dies before delivery, checks
+that changing its handled status after enqueue does not change the queued copy,
+and verifies insertion order, promotion, delivery, and an event enqueued by a
+callback. `event-names` exercises the actual EventBus and EventManager with the
+seven-character `handler` view into `handler-extra` and an explicitly sized
+three-character buffer without a terminator. It removes with those bounded
+views, reuses removed names, and verifies that the full suffix-bearing name,
+unrelated handlers, and the same name on another event type survive. It checks
+registration order, consumption, and skipping already handled events. Oracles
+throw in Release as well as Debug. Neither check needs an Application or GL
+context; the Windows Regression entry point retains its private desktop setup.
+The existing Premake source glob includes both checks; all previous selectors
+and the no-argument complete suite remain available. No Windows UI script is
+configured for this issue.
+
+Event objects belong to their caller for immediate dispatch; the callback borrows
+the supplied object synchronously. `dispatchEvent` uses `s_GetEventType()`, returns
+whether the type matched, and on a match replaces handled status with the
+callback result. It does not deliver named subscriptions or enqueue anything.
+`enqueue` owns a copy, including the payload's current handled status. Named
+callbacks borrow that queued copy only during delivery. Do not retain callback
+event references. `dispatchAllEvents` delivers the current queue in insertion
+order, then promotes the next queue and clears the completed queue. A newly
+queued event is promoted on one call and delivered on the next; events enqueued
+during delivery can arrive on the following call. Fixed updates do not advance
+these queues unless they explicitly call dispatch.
+
+Subscriptions own exact copies of names and callbacks in static per-event-type
+storage. Names must be nonempty and unique within an event type; unsubscribe
+requires an existing name. These preconditions retain the existing assertion
+policy. Handlers run in registration order until one returns true; an already
+handled event is skipped. Explicitly unsubscribe before captured objects die:
+manager or Application destruction does not clear static subscriptions, and
+`EventManager::create()` itself retains a shared singleton whose queues can
+outlive an Application. Registering or unregistering during handler iteration
+can invalidate the vector and is unsupported. Recursive queue dispatch and
+unsynchronized concurrent access are also unsupported. This correction adds no
+subscription tokens, deferred mutation, thread safety, or event subsystem
+lifetime redesign.
+
+After the existing Windows Debug/Release Rebuild commands, run both selectors
+from each Regression output directory:
+
+```powershell
+foreach ($configuration in @('Debug', 'Release')) {
+    Push-Location ".\Binaries\windows-x86_64\$configuration\Regression"
+    try {
+        foreach ($selector in @('typed-events', 'event-names')) {
+            & '.\Regression.exe' $selector
+            if ($LASTEXITCODE -ne 0) { throw "$configuration $selector failed: $LASTEXITCODE" }
+        }
+    } finally { Pop-Location }
+}
+```
+
+Each must exit 0 and print its `PASS: typed-events` or `PASS: event-names`
+marker only after its assertions pass. Also run the complete suite with no
+arguments. Authoritative Windows/MSVC Debug and Release builds and runtime
+checks remain pending execution by the Windows host.
+
+Local evidence: a temporary C++20 standalone driver linked `EventChecks.cpp`
+with production `EventManager.cpp` and `Log.cpp`, using GCC `-O0 -g -DRB_DEBUG
+-DRB_ENABLE_ASSERTS -DRB_PLATFORM_WINDOWS` and `-O2 -DNDEBUG -DRELEASE`.
+Both binaries printed `PASS: typed-events` and `PASS: event-names` and exited 0.
+Compilation reused `/opt/editor-dependencies` spdlog/GLM snapshots, the temporary
+literal compatibility include described above, and a Debug-only compiler define
+mapping `__debugbreak()` to `__builtin_trap()`. No production or vendor code was
+adapted for Linux. These runs exercise real EventBus/EventManager behavior and
+the same check functions used by Regression, but do not run its Windows entry
+point, desktop isolation, or full suite. `git diff --check` passed.

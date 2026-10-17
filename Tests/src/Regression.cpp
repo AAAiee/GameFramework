@@ -17,6 +17,7 @@
 #include "ViewportPixelsCheck.h"
 #include "MinimizeRestoreCheck.h"
 #include "LayerPartitionCheck.h"
+#include "EventChecks.h"
 #include <windows.h>
 
 namespace {
@@ -88,8 +89,8 @@ namespace {
 }
 
 int main(int argc, char** argv) {
-    if (argc > 2 || (argc == 2 && (std::string_view(argv[1]) != "scene-hooks" && std::string_view(argv[1]) != "editor-issue-12" && std::string_view(argv[1]) != "camera-inverse" && std::string_view(argv[1]) != "renderer-batches" && std::string_view(argv[1]) != "editor-issue-15" && std::string_view(argv[1]) != "entity-tags" && std::string_view(argv[1]) != "editor-issue-16" && std::string_view(argv[1]) != "viewport-pixels" && std::string_view(argv[1]) != "editor-issue-17" && std::string_view(argv[1]) != "minimize-restore" && std::string_view(argv[1]) != "editor-issue-18" && std::string_view(argv[1]) != "layer-partition"))) {
-        std::cerr << "Usage: Regression.exe [scene-hooks|editor-issue-12|camera-inverse|renderer-batches|editor-issue-15|entity-tags|editor-issue-16|viewport-pixels|editor-issue-17|minimize-restore|editor-issue-18|layer-partition]\n";
+    if (argc > 2 || (argc == 2 && (std::string_view(argv[1]) != "scene-hooks" && std::string_view(argv[1]) != "editor-issue-12" && std::string_view(argv[1]) != "camera-inverse" && std::string_view(argv[1]) != "renderer-batches" && std::string_view(argv[1]) != "editor-issue-15" && std::string_view(argv[1]) != "entity-tags" && std::string_view(argv[1]) != "editor-issue-16" && std::string_view(argv[1]) != "viewport-pixels" && std::string_view(argv[1]) != "editor-issue-17" && std::string_view(argv[1]) != "minimize-restore" && std::string_view(argv[1]) != "editor-issue-18" && std::string_view(argv[1]) != "layer-partition" && std::string_view(argv[1]) != "typed-events" && std::string_view(argv[1]) != "event-names"))) {
+        std::cerr << "Usage: Regression.exe [scene-hooks|editor-issue-12|camera-inverse|renderer-batches|editor-issue-15|entity-tags|editor-issue-16|viewport-pixels|editor-issue-17|minimize-restore|editor-issue-18|layer-partition|typed-events|event-names]\n";
         return 2;
     }
     try {
@@ -109,6 +110,16 @@ int main(int argc, char** argv) {
             }
         }
         Rubber::Logger::Init();
+        if (argc == 1 || std::string_view(argv[1]) == "typed-events") {
+            Rubber::checkTypedEvents();
+            std::cout << "PASS: typed-events\n";
+            if (argc == 2) return 0;
+        }
+        if (argc == 1 || std::string_view(argv[1]) == "event-names") {
+            Rubber::checkEventNames();
+            std::cout << "PASS: event-names\n";
+            if (argc == 2) return 0;
+        }
         require(glfwInit() == GLFW_TRUE, "GLFW initialization failed");
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);

@@ -4,6 +4,13 @@
 
 namespace Rubber{
 
+    // Shared singleton; queues can outlive an Application. enqueue owns a copy
+    // (including handled status); callbacks borrow that copy only during delivery.
+    // dispatchAllEvents delivers the current queue in insertion order, then
+    // promotes the next queue. Newly enqueued events need promotion then delivery
+    // on two calls; events enqueued during delivery arrive on the following call.
+    // Do not recursively dispatchAllEvents from a callback. Subscription mutation
+    // during delivery is unsafe; see EventBus. No thread synchronization is provided.
 	class EventManager{  
 	private:
 		template<typename EventType>
@@ -22,6 +29,10 @@ namespace Rubber{
 
 		void dispatchAllEvents(); // in queued order
 
+        // Borrows e and invokes only func synchronously on a type match; no queue
+        // or named subscribers participate. Returns whether the type matched,
+        // independently of consumption. Replaces handled status with func's result,
+        // even if e was already handled. The callback must not retain e's reference.
 		template<typename EventType>
 		bool dispatchEvent(EventType& e, const EventHandlerFunc<EventType>& func); // immediately
 
@@ -38,7 +49,7 @@ namespace Rubber{
 	template<typename EventType>
 	bool Rubber::EventManager::dispatchEvent(EventType& e, const EventHandlerFunc<EventType>& func)
 	{
-		if (EventType::getStaticType() == e.getEventType()) {
+		if (EventType::s_GetEventType() == e.getEventType()) {
 			e.setHandleStatus(func(e));
 			return true;
 		}

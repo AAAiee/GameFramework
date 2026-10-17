@@ -11,6 +11,13 @@
 
 namespace Rubber {
 
+    // Per-event-type static subscriptions survive manager/Application destruction.
+    // Names are owned copies of the exact view, unique and nonempty within T;
+    // unregister requires an existing name. Callers must unsubscribe before any
+    // captured objects die. Handlers borrow the event for the duration of the call.
+    // Registration order is delivery order; true consumes and stops delivery.
+    // Already handled events are skipped. Registering/unregistering during delivery
+    // can invalidate vector iteration and is unsupported; access is unsynchronized.
 	template <typename T>
 	class EventBus{
 
@@ -22,27 +29,30 @@ namespace Rubber {
 			if (name.empty()) {
 				RB_CORE_ASSERT(false); // can not have empty name, empty name is invalid id
 			}
+			// Copy the bounded view once; every operation uses this exact name.
+			std::string ownedName(name);
 			// check to see if the handler is already in the pool
-			auto handlerItr = s_NamePool.find(name.data());
+			auto handlerItr = s_NamePool.find(ownedName);
 			RB_CORE_ASSERT(handlerItr == s_NamePool.end(), "trying to register a handler that already existed");
 
-			s_Handlers.emplace_back(std::move(handler), std::string(name));
-			s_NamePool.emplace(name.data());
+			s_Handlers.emplace_back(std::move(handler), std::string(ownedName));
+			s_NamePool.emplace(std::move(ownedName));
 		}
 
 		static void unregisterEventHandler(std::string_view name){
 			RB_PROFILE_FUNC();
 
+			std::string ownedName(name);
 			// first check if the name is a existed handler name in the pool
-			auto iterator = s_NamePool.find(name.data());
+			auto iterator = s_NamePool.find(ownedName);
 			RB_CORE_ASSERT(iterator != s_NamePool.end(), "the handler's name does not exists!");
 
 			auto vecIt = std::find_if(s_Handlers.begin(), s_Handlers.end(),
-				[&](auto& h) { return h.name == name.data(); });
+				[&](auto& h) { return h.name == ownedName; });
 
 
 			s_Handlers.erase(vecIt);
-			s_NamePool.erase(name.data());
+			s_NamePool.erase(ownedName);
 		}
 
 		static void processAllHandlers(const T& e){
