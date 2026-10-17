@@ -17,6 +17,10 @@
 //TODO: instead of writing all virtual functions  in shader, maybe just dynamic_cast it to the corresponding object?
 namespace Rubber {
 
+	// Creation, uniform updates, binding and destruction require a compatible
+	// graphics context current on the calling thread. Paths and uniform names
+	// accept bounded slices without a trailing terminator (no embedded NULs).
+	// getName() borrows shader-owned storage until destruction.
 	class Shader {
 	public:
 		virtual ~Shader() {};

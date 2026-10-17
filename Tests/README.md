@@ -1160,3 +1160,65 @@ MSVC `ui16/ui32/ui64` suffixes, and a Debug-only `__debugbreak()` mapping to
 needed. These are syntax and fixture-decoding checks, not execution of the atlas
 GL assertions, Windows Regression entry point, or complete suite.
 `git diff --check` passed.
+
+## Graphics string boundaries and packed rows (F13 / issue #23)
+
+`Regression.exe gl-boundaries` runs production `GLTexture2D` and `GLShader`
+against the suite's hidden OpenGL 4.5 context on its private Windows desktop.
+The selector is also included in the no-argument suite. All existing selectors
+remain available. Failures throw and exit nonzero in Debug and Release;
+`PASS: gl-boundaries` is printed only after every assertion completes.
+
+The fixture writes uncompressed top-origin RGB/RGBA TGA images under a temporary
+subdirectory of the executable working directory and removes them on exit.
+Distinct bytes across three rows test widths 1, 3 and 5 at unpack alignments
+1, 4 and 8. Both file construction and full-image `setData` uploads must preserve
+the prior alignment and match every expected byte on actual GL readback. A
+size-only RGBA texture is checked too. Readback independently sets pack alignment
+to 1, clears row lengths/skips, and unbinds pack/unpack buffers; saved GL state is
+restored afterward. Top-origin disk rows must become bottom-first texture rows;
+`setData` supplies bottom-first rows directly. The fixture passes exact pixel
+byte counts, with extra backing allocation for replacement data so an erroneous
+strided upload cannot read beyond that allocation.
+
+Texture and shader file paths have nonempty unused suffix bytes beyond the view.
+A linked shader exposes both `u_Value` and `u_ValueSuffix`; sliced uniform updates
+must change only `u_Value`, including a repeated lookup with a different backing
+suffix to exercise the cache. Program link status, independent uniform locations,
+GL errors, dimensions and pixel values are checked. This uses valid shader inputs;
+shader failure-path redesign remains excluded.
+
+Textures own GL resources; `Ref` shares that ownership, and final release requires
+a current compatible context. SubTexture2D retains a shared sheet reference and
+owns its four UVs; `getTexCoord()` borrows exactly four values in bottom-left,
+bottom-right, top-right, top-left order until SubTexture2D destruction. Copy the
+values to retain them. File paths are copied, decoded RGB/RGBA pixels are freed
+after upload, and `setData` borrows `width * height * channels` bytes only for the
+call (3 bytes per RGB pixel, 4 per RGBA pixel; size-created textures use RGBA).
+Uploads preserve unpack alignment; other unpack state must specify ordinary
+client memory with no row length, skips or unpack buffer. See the corresponding
+public API headers for the contracts.
+
+From each configuration's Regression output directory, run:
+
+```powershell
+& '.\Regression.exe' gl-boundaries
+if ($LASTEXITCODE -ne 0) { throw "gl-boundaries failed: $LASTEXITCODE" }
+```
+
+Run this after both Debug and Release Rebuilds described above, and run the
+no-argument suite in both builds. No additional Windows UI script is configured
+for issue #23. Linux source/compile checks do not establish runtime GL behavior:
+Windows/MSVC Debug and Release hidden-context execution remains pending the host.
+
+Local F13 evidence: `git diff --check` passed. GCC C++20 syntax checking of
+`GLTexture2D.cpp` passed using the read-only dependency snapshots and a temporary
+preinclude for the existing MSVC integer-literal suffixes. An extracted copy of
+the fixture's pixel/TGA writer functions was compiled with C++20 at `-O0 -g` and
+`-O2 -DNDEBUG`; both decoded all six width/channel combinations through the
+supplied stb implementation and verified every channel and the vertical flip.
+This validates the fixture data only, not GPU uploads. A broader local syntax
+check reached the existing `GLShader.h` constexpr upload helpers, which GCC
+rejects because they call GL function pointers. Those pre-existing declarations
+and the C++20/Premake/MSVC configuration were preserved. This container has no
+OpenGL runtime/context runner; no GL execution or Windows build is claimed.

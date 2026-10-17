@@ -5,11 +5,21 @@
 namespace Rubber{
 
 	class Texture2D;
+	// Owns a shared Ref to its sprite sheet and four normalized UV coordinates;
+	// no GPU texture is copied. UV order: bottom-left, bottom-right, top-right,
+	// top-left (horizontal reversal swaps left/right). Index and cell sizes are
+	// measured from the bottom-left, with cell sizes in pixels. Construction from
+	// a sheet requires a non-null texture with positive dimensions. Releasing the
+	// last sheet owner requires its live graphics context, as for Texture2D.
+	// Default construction holds no sheet and zero UVs/dimensions.
 	class SubTexture2D {
 	public:
+		// Borrows the stored Ref; copy it to retain shared ownership independently.
 		inline const Ref<Texture2D>& getSpriteSheetTexture()  {
 			return m_SpriteSheet;
 		}
+		// Borrows exactly four coordinates owned by this SubTexture2D; invalidated
+		// by destruction. Copy the values to retain them independently.
 		inline const glm::vec2* getTexCoord() const {
 			return m_TexCoord;
 		}

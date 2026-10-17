@@ -130,7 +130,8 @@ namespace Rubber {
 		if (it != m_UniformCache.end())
 			return it->second;
 
-		GLint loc = glGetUniformLocation(m_ShaderID, name.data());
+		const std::string terminatedName(name);
+		GLint loc = glGetUniformLocation(m_ShaderID, terminatedName.c_str());
 		RB_CORE_ASSERT(loc != -1, "Uniform  not found");
 		m_UniformCache.emplace(std::string(name), loc);
 		return loc;
@@ -142,7 +143,8 @@ namespace Rubber {
 		RB_PROFILE_FUNC();
 
 		std::string result;
-		std::ifstream in(filepath.data(), std::ios::in | std::ios::binary);
+		const std::string terminatedPath(filepath);
+		std::ifstream in(terminatedPath.c_str(), std::ios::in | std::ios::binary);
 		if (in) {
 			in.seekg(0, in.end);
 			size_t size = in.tellg();
