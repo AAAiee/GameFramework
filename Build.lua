@@ -25,3 +25,5 @@ group "Editor"
 filter {}
 group "Tests"
    include "Tests/Build-Regression.lua"
+   filter {}
+   include "Tests/Build-UnitTests.lua"
