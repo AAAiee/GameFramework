@@ -382,7 +382,7 @@ run the editor loop fixture first, release its scene and shortcut subscription,
 then run the dialog fixture using the initialized ImGui context and font atlas.
 Closing the application loop does not prevent synchronous modal dialog calls.
 This order avoids reinitializing the atlas behind FontManager's process-wide
-indices and keeps only one Scene subscribed at a time.
+borrowed pointers and keeps only one Scene subscribed at a time.
 
 After the existing Premake generation and x64 Debug/Release solution Rebuild
 commands above, run in **both** configurations:
@@ -554,7 +554,7 @@ A narrow friend fixture observes selection and calls the actual row renderer for
 label evidence; no widget, adapter, Scene or delete operation is replaced.
 The complete hierarchy/properties windows handle the interaction frames.
 The context is scoped separately so the full suite's editor font atlas and
-FontManager indices survive. No backend or application lifecycle is changed.
+FontManager pointers survive. No backend or application lifecycle is changed.
 
 The always-active checks click the row and expansion arrow, focus the production
 Tag input, and use Ctrl+A, Backspace, UTF-8 input and Enter to rename it. The
@@ -1001,3 +1001,80 @@ mapping `__debugbreak()` to `__builtin_trap()`. No production or vendor code was
 adapted for Linux. These runs exercise real EventBus/EventManager behavior and
 the same check functions used by Regression, but do not run its Windows entry
 point, desktop isolation, or full suite. `git diff --check` passed.
+
+
+## Named atlas fonts (F11 / issue #21)
+
+`FontManager` stores the actual `ImFont*` returned by atlas insertion. Names are
+copied on registration and looked up using the full bounded `string_view`.
+`getFont` returns `nullptr` for an unknown name without inserting a registration.
+`setDefaultFont` returns `true` after selecting that named pointer; an unknown
+name returns `false` and preserves `ImGuiIO::FontDefault`.
+
+`loadFontFromTTF` retains its `void` signature. It throws `std::runtime_error`
+with the supplied path on open/read/format/insertion failure, nonpositive or
+nonfinite size, or a locked atlas. Failure preserves any previous registration
+under that name. Successful reloading replaces the name's pointer; earlier fonts
+remain owned by the atlas. Files must be complete trusted TTF/OTF resources.
+The loader reads and validates them with ImGui's existing stb_truetype header
+before insertion, avoiding ImGui's Debug assertion for missing files and its
+deferred parse assertion for unsupported data. ImGui copies the validated bytes
+into atlas-owned storage before the loader's buffer is destroyed. Existing editor
+load calls propagate these exceptions, so a failed asset load cannot silently
+continue as a successful registration. No vendor implementation is edited.
+
+All returned pointers borrow the current ImGui atlas. Load before a frame starts;
+do not clear or replace the atlas, destroy its context, or use registered pointers
+beyond that lifetime. The process-wide registry is for one atlas/context lifetime;
+using old registrations with another context is unsupported. This correction does
+not change Application teardown or add context recreation support.
+
+`Regression.exe font-atlas` runs the actual FontManager with a real scoped ImGui
+context, without an Application, window, or GL backend. It inserts default fonts
+before, between, and after named loads, compares names to actual atlas pointers,
+uses a sliced name with a separately registered suffix-bearing name and a
+nonterminated buffer, selects both named defaults, repeats unknown/empty lookup,
+and verifies unknown default selection leaves the default unchanged. Missing,
+empty, and plain-text files must throw with path context without adding an atlas
+font or registration. A failed replacement must preserve the previous pointer;
+a name looked up while unknown must still support a later successful load.
+Finally the real atlas must build and the retained fonts must be loaded. Temporary
+failure fixtures are created beneath the executable working directory and removed
+on exit. All assertions throw in Debug and Release. The existing Premake source
+glob includes this check, and the no-argument suite runs it before creating the
+Application. Its context restores the previous current context and no borrowed
+pointer is used after destruction. Every previous selector and private-desktop
+isolation remain available. No Windows UI script is configured for issue #21.
+
+After the existing Windows Debug/Release rebuild commands, run all configured
+selectors and the complete suite from each Regression output directory:
+
+```powershell
+foreach ($configuration in @('Debug', 'Release')) {
+    Push-Location ".\Binaries\windows-x86_64\$configuration\Regression"
+    try {
+        foreach ($selector in @('scene-hooks', 'camera-inverse', 'renderer-batches',
+                'entity-tags', 'viewport-pixels', 'minimize-restore', 'layer-partition',
+                'typed-events', 'event-names', 'font-atlas')) {
+            & '.\Regression.exe' $selector
+            if ($LASTEXITCODE -ne 0) { throw "$configuration $selector failed: $LASTEXITCODE" }
+        }
+        & '.\Regression.exe'
+        if ($LASTEXITCODE -ne 0) { throw "$configuration complete suite failed: $LASTEXITCODE" }
+    } finally { Pop-Location }
+}
+```
+
+Each selector must exit 0 and print its matching `PASS: <selector>` only after
+its assertions pass. Windows/MSVC Debug and Release builds, configured selectors,
+and the full suite remain pending execution by the Windows host.
+
+Local evidence: a temporary C++20 standalone driver compiled `FontAtlasCheck.cpp`
+and the production `FontManager.cpp` with the real ImGui core/draw/table/widget
+sources from `/opt/editor-dependencies/imGui`. GCC `-O0 -g -DRB_DEBUG
+-DRB_ENABLE_ASSERTS` and `-O2 -DNDEBUG -DRELEASE` builds both printed
+`PASS: font-atlas` and exited 0, using the production editor font assets.
+No dependency downloads or vendor edits were needed. These runs exercise the
+same check function used by Regression, but do not validate its Windows entry
+point, private desktop, MSVC configuration, or the complete suite.
+`git diff --check` passed.
