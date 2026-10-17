@@ -1,0 +1,4 @@
+# Preserve upstream bytes (and SHA-256) on Windows checkouts too.
+# The upstream header includes a whitespace-only line; retain it verbatim.
+doctest.h -text whitespace=-blank-at-eol
+LICENSE.txt -text

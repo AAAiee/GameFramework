@@ -1,5 +1,108 @@
 # First-party regression checks
 
+## Headless UnitTests (issue #29)
+
+`UnitTests` is a separate C++20 console executable using vendored doctest v2.4.12.
+Its only translation units are `unit/UnitTests.cpp` and the existing
+`src/CameraInverseCheck.cpp`. The registered `camera-inverse` case calls that
+shared behavior check through `CHECK_NOTHROW`; the check body and Regression's
+selectors are unchanged. Its projection-preservation, retained snapshot and
+identity-tolerance checks throw in every configuration. See
+[Camera.h](../Engine/Source/Rubber/Renderer/Camera.h) for the owned inverse API
+contract and [doctest provenance](../Vendor/doctest/README.md) for the pin,
+checksums, license and intentional update procedure.
+
+The doctest implementation/main is compiled exactly once in `unit/UnitTests.cpp`,
+outside Regression's `src/**.cpp` wildcard. UnitTests uses Camera/GLM headers and
+does not link Engine, OpenGL, windowing or editor libraries, or copy editor
+assets. Both translation units use the same static MSVC CRT: `/MTd` in x64 Debug
+and `/MT` in x64 Release (`staticruntime "on"` with matching `runtime`). Doctest
+checks remain active with `NDEBUG`; `DOCTEST_CONFIG_DISABLE` is rejected by the
+runner. No C `assert` is used for acceptance.
+
+From the repository root on the prepared Windows host, reuse the initialized
+dependencies/worktree and VS2022 installation. Generation retains the existing
+solution; building `Tests\UnitTests.vcxproj` builds only the headless target.
+Adjust the MSBuild installation path if needed. No doctest download occurs.
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$repository = (Get-Location).Path
+$msbuild = 'C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe'
+& '.\Vendor\Binaries\Premake\Windows\premake5.exe' --file=Build.lua vs2022
+if ($LASTEXITCODE -ne 0) { throw 'Premake failed' }
+foreach ($configuration in @('Debug', 'Release')) {
+    & $msbuild 'Tests\UnitTests.vcxproj' /t:Rebuild /m "/p:Configuration=$configuration" /p:Platform=x64 /v:minimal /nologo
+    if ($LASTEXITCODE -ne 0) { throw "$configuration UnitTests build failed" }
+    $outputDir = Join-Path $repository "Binaries\windows-x86_64\$configuration\UnitTests"
+    $exe = Join-Path $outputDir 'UnitTests.exe'
+    & $exe --no-colors --no-breaks
+    if ($LASTEXITCODE -ne 0) { throw "$configuration UnitTests failed" }
+    & $exe '--test-case=camera-inverse' --no-colors --no-breaks
+    if ($LASTEXITCODE -ne 0) { throw "$configuration camera filter failed" }
+    & $exe '--test-case=camera-inverse' --reporters=junit "--out=$outputDir\unit-tests.xml" --no-breaks
+    if ($LASTEXITCODE -ne 0) { throw "$configuration JUnit run failed" }
+    [xml]$report = Get-Content -Raw (Join-Path $outputDir 'unit-tests.xml')
+    if ($report.testsuites.testsuite.tests -ne '1' -or
+        $report.testsuites.testsuite.failures -ne '0' -or
+        $report.testsuites.testsuite.errors -ne '0') { throw 'Unexpected JUnit result' }
+}
+```
+
+No arguments run all registered UnitTests cases. `--list-test-cases` lists them,
+`--test-case=camera-inverse` selects the camera check, `--success` includes passing
+assertions, and `--reporters=junit --out=<path>` writes JUnit XML. Runs exit zero
+on success and nonzero on failed assertions or unexpected exceptions. Inspect
+the expected case count as above: doctest can accept a filter that matches no
+cases. Reports belong under the output directory, not in source control.
+
+For host acceptance, run the executable acceptance script below after generation,
+using the same prepared verification worktree and MSBuild installation. Run the
+two configurations sequentially, without concurrent builds in that worktree:
+
+```powershell
+foreach ($configuration in @('Debug', 'Release')) {
+    $binaryRoot = Join-Path $repository "Binaries\windows-x86_64\$configuration"
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File '.\Tests\Windows\unit-tests.ps1' -Configuration $configuration -BinaryRoot $binaryRoot -MSBuild $msbuild
+    if ($LASTEXITCODE -ne 0) { throw "$configuration UnitTests acceptance failed" }
+}
+```
+
+`unit-tests.ps1` builds only UnitTests, runs all cases and a camera-filtered JUnit
+report, then builds a disposable runner copy with `CHECK(false);` added after
+`CHECK_NOTHROW`. It copies the generated project beside the original so relative
+paths and MSVC configuration settings remain identical, redirects probe outputs
+to a temporary directory, and never edits tracked sources. The probe must report
+the deliberate assertion, exit 1, and report exactly one failed case in JUnit.
+A crash, timeout, missing case, or unexpected exit fails acceptance. Its project,
+source and binaries are removed in `finally`; the normal target is then rebuilt
+and both passing runs repeated. Every execution uses `--no-breaks`; no
+`--no-exitcode` override is used. Build timeouts are 180 seconds; run timeouts are
+30 seconds. Timeout cleanup stops only the invocation's process tree.
+
+Retain `UnitTests/issue-29/acceptance.log`, stdout/stderr logs and JUnit XML from
+each configuration output directory. The summary records the candidate commit,
+configuration, MSBuild path, stage exits and `PASS: unit-tests-Debug` or
+`PASS: unit-tests-Release` only after all checks pass. These two script invocations
+are required **in addition to** the existing host Regression/UI plan: a solution
+build or passing Regression camera selector does not execute doctest. A retry
+replaces its stage evidence; retain each completed run with its candidate SHA.
+No dependency downloads or additional worktree preparation are required.
+The supplied 41-stage host plan omits these two invocations. The host must
+schedule them explicitly (43 stages with the existing plan), allow 900 seconds
+per outer script invocation, and retain their nested evidence. See the
+[second-review handoff](../docs/validation/issue-29.md#second-review-host-execution-blocker).
+
+This target adds no UI or Regression acceptance replacement. Continue the full
+Regression suite, all 13 configured selectors and all five existing Windows
+scripts below on the host. Their scripts, genuine fixtures, private-desktop
+isolation, prepared dependency/worktree reuse and bounded timeouts are preserved.
+Issue #29 changes no AFK workflows, package commands or branch protection; the
+owner's separate #28 work remains separate.
+
+Local evidence and the pending Windows acceptance are recorded in
+[the issue #29 validation record](../docs/validation/issue-29.md).
+
 ## Combined validation for issue #25
 
 Use this section for the combined final-commit run. The per-ticket notes below
