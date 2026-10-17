@@ -7,6 +7,22 @@
 
 
 namespace Rubber{
+	namespace {
+		// stb and setData supply contiguous rows, independent of the caller's row alignment.
+		class TightUnpackRows {
+		public:
+			TightUnpackRows() {
+				glGetIntegerv(GL_UNPACK_ALIGNMENT, &m_Previous);
+				glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+			}
+			~TightUnpackRows() { glPixelStorei(GL_UNPACK_ALIGNMENT, m_Previous); }
+			TightUnpackRows(const TightUnpackRows&) = delete;
+			TightUnpackRows& operator=(const TightUnpackRows&) = delete;
+		private:
+			GLint m_Previous = 4;
+		};
+	}
+
 	GLTexture2D::GLTexture2D(std::string_view path)
 		:m_Path(path)
 	{
@@ -17,7 +33,7 @@ namespace Rubber{
 		unsigned char* data = nullptr;
 		{// load
 			RB_PROFILE_SCOPE("StbiLoadImage");
-				data = stbi_load(path.data(), &this->m_Width, &this->m_Height, &this->m_Channels, 0);
+				data = stbi_load(m_Path.c_str(), &this->m_Width, &this->m_Height, &this->m_Channels, 0);
 			if (!data) {
 				RB_CORE_ASSERT(false, "Fail to load the texture image!");
 			}
@@ -50,7 +66,10 @@ namespace Rubber{
 		glTextureParameteri(m_RendererID, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		glTextureParameteri(m_RendererID, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
-		glTextureSubImage2D(m_RendererID, 0, 0, 0, this->m_Width, this->m_Height, dataFormat, GL_UNSIGNED_BYTE, data);
+		{
+			TightUnpackRows unpackRows;
+			glTextureSubImage2D(m_RendererID, 0, 0, 0, this->m_Width, this->m_Height, dataFormat, GL_UNSIGNED_BYTE, data);
+		}
 		glGenerateTextureMipmap(m_RendererID);
 
 		stbi_image_free(data);
@@ -98,7 +117,10 @@ namespace Rubber{
 
 		uint16_t bytePerPixel = m_DataFormat == GL_RGB ? 3 : 4;
 		RB_CORE_ASSERT(size == bytePerPixel * m_Width * m_Height, "Size of data must be the size of the full texture!");
-		glTextureSubImage2D(m_RendererID, 0, 0, 0, m_Width, m_Height, m_DataFormat, GL_UNSIGNED_BYTE, data);
+		{
+			TightUnpackRows unpackRows;
+			glTextureSubImage2D(m_RendererID, 0, 0, 0, m_Width, m_Height, m_DataFormat, GL_UNSIGNED_BYTE, data);
+		}
 		glGenerateTextureMipmap(m_RendererID);
 	}
 

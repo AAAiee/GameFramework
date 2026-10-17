@@ -13,6 +13,7 @@ namespace Rubber {
 		static void setViewPort(int width, int height);
 		static void clearColor(const glm::vec4& color);
 		static void clear();
+        /** Borrows the vertex array for a draw of count index elements, not bytes. Zero is forwarded unchanged. */
 		static void drawIndexed(const Ref<VertexArray>& vertexArray, uint32_t count = 0);
 		static void setPolygonMode(RendererPolygonMode mode);
 	private:

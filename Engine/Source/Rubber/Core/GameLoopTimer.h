@@ -10,8 +10,12 @@ namespace Rubber {
 		int getFps() const;
 		void startFrame();
 		void waitForFrameEnd();
+		// Seconds since startFrame(), including work and any wait so far.
 		double getElapsedTime() const; 
 		double getAverageFrameTime() const;
+		// Seconds in the last completed waitForFrameEnd() sample, including pacing.
+		// Before the first completed frame, returns the target frame duration.
+		// This is a previous-frame sample, not time since the preceding call.
 		double getDeltaTime()const ;
 
 	private:

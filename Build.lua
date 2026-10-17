@@ -20,3 +20,8 @@ group "Engine"
 
 group "Editor"
    include "Editor/Build-Editor.lua"
+
+
+filter {}
+group "Tests"
+   include "Tests/Build-Regression.lua"

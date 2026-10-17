@@ -7,6 +7,12 @@
 namespace Rubber {
 	struct AnimationClipConfig;
 
+	/** Mutable playback state for the dormant animation system; not installed by Scene.
+     * Configured construction/setSpec requires Application asset metadata for an
+     * animation atlas or sheet. Frame indices are zero-based; resources stay in
+     * the manager. Completion callbacks execute synchronously during updates;
+     * do not destroy/move components or mutate iterated registry storage there.
+     * Captured component references and repeated nonloop completion remain unsafe. */
 	struct AnimationSpec {
 
 		enum class AnchorMode: uint8_t {
@@ -19,6 +25,7 @@ namespace Rubber {
 
 		void setSpec(const AnimationClipConfig& config);
 
+		/** Legacy name: assigns m_IsLoop=flag, rather than inverting it. */
 		void setRunOnce(bool flag) {
 			m_IsLoop = flag;
 		}
@@ -49,6 +56,8 @@ namespace Rubber {
 		std::function<void()> m_OnFinished;
 	};
 
+	/** Copies a clip handle, callback and playback settings; frameDuration is seconds
+     * per frame and must be positive. This configuration owns no asset manager. */
 	struct AnimationClipConfig {
 		std::function<void()> onFinished = nullptr;
 		AssetHandle clipHandle;

@@ -1,4 +1,18 @@
 #include <EditorLayer.h>
+#include <cmath>
+#include <limits>
+#include <optional>
+
+namespace {
+    // Truncate once, before comparison or publication. Reject before float-to-int conversion.
+    std::optional<glm::uvec2> viewportPixels(glm::vec2 available) {
+        const double limit = (std::numeric_limits<uint32_t>::max)();
+        if (!std::isfinite(available.x) || !std::isfinite(available.y)
+            || available.x < 1.0f || available.y < 1.0f
+            || available.x > limit || available.y > limit) return std::nullopt;
+        return glm::uvec2(static_cast<uint32_t>(available.x), static_cast<uint32_t>(available.y));
+    }
+}
 
 namespace Rubber {
 	EditorLayer::EditorLayer() :Layer("example") { }
@@ -26,6 +40,7 @@ namespace Rubber {
 
 		m_FrameBuffer = FrameBuffer::create({ width,height,1,false });
 		m_ActiveScene = Scene::create();
+        initializeSceneViewport();
 		m_SceneHierachyPanel.setContext(m_ActiveScene);
 
 
@@ -41,16 +56,14 @@ namespace Rubber {
 
 	void EditorLayer::onUpdate(const float ts)
 	{
-		// Resize the frame buffer to match the view port's size 
-		const FrameBufferSpecification& frameBufferSpec = m_FrameBuffer->getSpecification();
-		glm::vec2 frameBufferSizeBefore = { frameBufferSpec.m_Width, frameBufferSpec.m_Height };
-
-		// If viewport changed to  0 * anything,invalid dimension , otherwise resize framebuffer
-		if (m_ViewPortDimension.x * m_ViewPortDimension.y != 0.0f && frameBufferSizeBefore != m_ViewPortDimension) {
-			m_FrameBuffer->resize((uint32_t)m_ViewPortDimension.x, (uint32_t)m_ViewPortDimension.y);
-			Application::getEventManager()->enqueue(ViewPortResizeEvent((uint32_t)m_ViewPortDimension.x, (uint32_t)m_ViewPortDimension.y));
-			m_ActiveScene->updatesViewportSize(m_ViewPortDimension);
-		}
+        // The previous ImGui frame supplies available logical dimensions.
+        const auto pixels = viewportPixels(m_ViewPortDimension);
+        const auto& spec = m_FrameBuffer->getSpecification();
+        if (pixels && (spec.m_Width != pixels->x || spec.m_Height != pixels->y)) {
+            m_FrameBuffer->resize(pixels->x, pixels->y);
+            Application::getEventManager()->enqueue(ViewPortResizeEvent(pixels->x, pixels->y));
+            m_ActiveScene->updatesViewportSize(glm::vec2(*pixels));
+        }
 
 		// Update all systems and render everything into the frame buffer
 		m_FrameBuffer->bind();
@@ -107,8 +120,8 @@ namespace Rubber {
 		// Submit the DockSpace
 
 		// config the minimum window width for any docked windows
-		float windowMinimumSizeX = ImGui::GetWindowWidth();
 		ImGuiStyle& style = ImGui::GetStyle();
+        const float windowMinimumSizeX = style.WindowMinSize.x;
 		style.WindowMinSize.x = 420.0f;
 		ImGuiIO& io = ImGui::GetIO();
 		if (io.ConfigFlags & ImGuiConfigFlags_DockingEnable)
@@ -164,7 +177,7 @@ namespace Rubber {
 
 		ImVec2 curViewPortSize = ImGui::GetContentRegionAvail();
 		m_ViewPortDimension = { curViewPortSize.x, curViewPortSize.y };
-		ImGui::Image(reinterpret_cast<void*>((uint64_t)m_FrameBuffer->getColorAttachmentID()), *(ImVec2*)&m_ViewPortDimension, { 0,1 }, { 1,0 });
+		ImGui::Image(reinterpret_cast<void*>((uint64_t)m_FrameBuffer->getColorAttachmentID()), ImVec2(m_ViewPortDimension.x, m_ViewPortDimension.y), { 0,1 }, { 1,0 });
 		ImGui::End();
 		ImGui::PopStyleVar();
 
@@ -172,12 +185,22 @@ namespace Rubber {
 		ImGui::End();
 	}
 
+    void EditorLayer::initializeSceneViewport()
+    {
+        // Before layout, or while collapsed, retain the last usable render target.
+        const auto& spec = m_FrameBuffer->getSpecification();
+        const auto pixels = viewportPixels(m_ViewPortDimension).value_or(
+            glm::uvec2(spec.m_Width, spec.m_Height));
+        if (pixels.x > 0 && pixels.y > 0)
+            m_ActiveScene->updatesViewportSize(glm::vec2(pixels));
+    }
+
 	void EditorLayer::newScene()
 	{
 		m_ActiveScene.reset();
 		m_ActiveScene = Scene::create();
 		m_SceneHierachyPanel.setContext(m_ActiveScene);
-		m_ActiveScene->updatesViewportSize(m_ViewPortDimension);
+		initializeSceneViewport();
 	}
 
 	void EditorLayer::openScene()
@@ -187,7 +210,7 @@ namespace Rubber {
 			m_ActiveScene.reset();
 			m_ActiveScene = Scene::create();
 			m_SceneHierachyPanel.setContext(m_ActiveScene);
-			m_ActiveScene->updatesViewportSize(m_ViewPortDimension);
+			initializeSceneViewport();
 
 			SceneSerializer serializer(m_ActiveScene);
 			serializer.deserialize(filepath);

@@ -127,56 +127,69 @@ namespace Rubber
 			attachAll();
 			m_FirstRun = false;
 		}
-	
+
 		double lag = 0.0;
 		while (m_Runing)
 		{
-			RB_PROFILE_SCOPE("Application::Running");
+			runFrame(lag);
+		}
+	}
 
-			{// start the timer
-				RB_PROFILE_SCOPE("startFrame");
-				this->m_Timer->startFrame();
+
+	void Application::runFrame(double& lag)
+	{
+		// getDeltaTime describes the preceding completed frame, before event polling.
+		const bool previousFrameMinimized = m_IsWindowMinimized;
+		RB_PROFILE_SCOPE("Application::Running");
+
+		{// start the timer
+			RB_PROFILE_SCOPE("startFrame");
+			this->m_Timer->startFrame();
+		}
+
+		{// window update
+			RB_PROFILE_SCOPE("FrameWindowUpdate");
+			m_Window->onUpdate();
+		}// window update
+
+		{// Flush all events held in the queue
+			RB_PROFILE_SCOPE("onEvent");
+			this->m_Em->dispatchAllEvents();
+		}//
+
+		{//Update all layer in order
+			RB_PROFILE_SCOPE("Frame: OnUpdate");
+			updateFixedLayers(m_Timer->getDeltaTime(), previousFrameMinimized, lag);
+		}
+
+		{// Begin:: On IMGUI Rendering
+			RB_PROFILE_SCOPE("OnImGuiRendering");
+			m_ImGuiLayer->begin();
+			for (Layer* layer : m_LayerStack)
+			{
+				layer->onImGuiRender();
 			}
-			
-			{// window update
-				RB_PROFILE_SCOPE("FrameWindowUpdate");
-				m_Window->onUpdate();
-			}// window update
+			m_ImGuiLayer->end();
+		}//
 
-			{// Flush all events held in the queue
-				RB_PROFILE_SCOPE("onEvent");
-				this->m_Em->dispatchAllEvents();
-			}// 
+		{// Wait if still has time left
+			RB_PROFILE_SCOPE("WaitFrametoEnd");
+			m_Timer->waitForFrameEnd();
+		}
+	}
 
-			{//Update all layer in order
-				RB_PROFILE_SCOPE("Frame: OnUpdate");
-				lag += this->m_Timer->getDeltaTime();
-				if (!this->m_IsWindowMinimized) {
-					//update all layers;
-					while (lag >= FIXED_TIME_STAMP){
-						for (Layer* layer : m_LayerStack)
-						{
-							layer->onUpdate(FIXED_TIME_STAMP);
-						}
-						lag -= FIXED_TIME_STAMP;
-					}
-				}
+	void Application::updateFixedLayers(double delta, bool previousFrameMinimized, double& lag)
+	{
+		if (m_IsWindowMinimized || previousFrameMinimized) {
+			lag = 0.0;
+			return;
+		}
+		lag += delta;
+		while (lag >= FIXED_TIME_STAMP) {
+			for (Layer* layer : m_LayerStack) {
+				layer->onUpdate(FIXED_TIME_STAMP);
 			}
-
-			{// Begin:: On IMGUI Rendering
-				RB_PROFILE_SCOPE("OnImGuiRendering");
-				m_ImGuiLayer->begin();
-				for (Layer* layer : m_LayerStack)
-				{
-					layer->onImGuiRender();
-				}
-				m_ImGuiLayer->end();
-			}// 
-
-			{// Wait if still has time left
-				RB_PROFILE_SCOPE("WaitFrametoEnd");
-				m_Timer->waitForFrameEnd();
-			}
+			lag -= FIXED_TIME_STAMP;
 		}
 	}
 
@@ -205,6 +218,8 @@ namespace Rubber
 			//make sure the resize event will be propagated to other callback as well
 			return false;
 		}
+
+		m_IsWindowMinimized = false;
 
 		//resize the viewport to match the resized window size
 		Renderer::onWindowResize(resizedToWidth,resizedToHeight);

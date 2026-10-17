@@ -1,3 +1,4 @@
+#pragma once
 #include "Rubber/Renderer/VertexArray.h"
 #include "Rubber/Core/Utility.h"
 

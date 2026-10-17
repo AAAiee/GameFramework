@@ -109,7 +109,7 @@ namespace Rubber
 		MouseReleasedEvent(int button)
 			:MouseButtonEvent(button){}
 		
-		EVENT_TYPE(EventType::MouseButtonPressed)
+		EVENT_TYPE(EventType::MouseButtonReleased)
 	
 		std::string toString() const override
 		{

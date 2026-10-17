@@ -2,6 +2,8 @@
 
 **简体中文** | [English](README.md) | [GameExample 分支](https://github.com/AAAiee/GameFramework/tree/GameExample)
 
+[代码阅读指南](docs/codebase-guide.md) · [验证记录与限制](docs/validation/spec-11.md)（英文）
+
 RB 是一个使用 **C++20、OpenGL、EnTT 和 Dear ImGui** 编写的 2D Engine 学习项目。`Editor` 分支包含一个基础场景编辑器，可以管理 Entity、编辑 Component、预览场景，并将场景保存为 `.rubber` 文件后重新加载。
 
 ## 演示

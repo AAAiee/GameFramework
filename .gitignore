@@ -12,5 +12,10 @@ Makefile
 
 *.json
 
+# Node tooling (Sandcastle)
+node_modules/
+!package.json
+!package-lock.json
+
 # Exclude
 !Vendor/Binaries

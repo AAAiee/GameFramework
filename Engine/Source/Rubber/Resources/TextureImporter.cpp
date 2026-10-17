@@ -63,7 +63,9 @@ namespace Rubber {
 				md.filepath = path;
 				md.type = AssetType::Texture2D;
 				md.name = textureName;
-				manager.addAsset(md.name, md, getMissingTexture()); 
+				manager.addAsset(md.name, md, getMissingTexture());
+				AssetHandle handler{ md.name };
+				atlas->addFrame(handler);
 				continue;
 			}
 

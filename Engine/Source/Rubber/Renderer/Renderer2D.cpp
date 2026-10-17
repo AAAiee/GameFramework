@@ -165,10 +165,6 @@ namespace Rubber {
 	{
 		RB_PROFILE_FUNC();
 
-		if (s_Data.m_ValidIndexCount >= s_Data.MAX_INDEX_NUMBER_PER_DRAW) {
-			flush();
-		}
-
 		glm::mat4 tsMatrix = glm::scale(glm::translate(glm::mat4(1.0f), position), { scale.x, scale.y, 1.0f });
 		drawColorQuad(tsMatrix, color, tillingFactor, tintColor);
 	}
@@ -177,9 +173,6 @@ namespace Rubber {
 	{
 		RB_PROFILE_FUNC();
 
-		if (s_Data.m_ValidIndexCount >= s_Data.MAX_INDEX_NUMBER_PER_DRAW) {
-			flush();
-		}
 	
 		glm::mat4 tsMatrix = glm::translate(glm::mat4(1), position)   
 			* glm::scale(glm::mat4(1), { scale.x, scale.y, 1 });
@@ -191,9 +184,6 @@ namespace Rubber {
 	{
 		RB_PROFILE_FUNC();
 
-		if (s_Data.m_ValidIndexCount >= s_Data.MAX_INDEX_NUMBER_PER_DRAW) {
-			flush();
-		}
 		glm::mat4 tsMatrix = glm::translate(glm::mat4(1), position)
 			* glm::scale(glm::mat4(1), { scale.x, scale.y, 1 });
 
@@ -204,10 +194,6 @@ namespace Rubber {
 	void Renderer2D::drawRotatedQuad(const glm::vec3& position, const glm::vec2& scale, const float radians, const Ref<Texture2D>& texture, const float tillingFactor, const glm::vec4& tintColor)
     {  
        RB_PROFILE_FUNC();  
-
-	   if (s_Data.m_ValidIndexCount >= s_Data.MAX_INDEX_NUMBER_PER_DRAW) {
-		   flush();
-	   }
 
 	   glm::mat4 tsMatrix = glm::scale(
 		   glm::rotate(
@@ -221,9 +207,6 @@ namespace Rubber {
 	void Renderer2D::drawRotatedQuad(const glm::vec3& position, const glm::vec2& scale, const float radians, const glm::vec4& color, const float TillingFactor /*= 1.f*/, const glm::vec4& tintColor /*= glm::vec4(1.0f)*/)
 	{
 		RB_PROFILE_FUNC();
-		if (s_Data.m_ValidIndexCount >= s_Data.MAX_INDEX_NUMBER_PER_DRAW) {
-			flush();
-		}
 
 		glm::mat4 tsMatrix = glm::scale(                                  
 				glm::rotate(                             
@@ -238,9 +221,6 @@ namespace Rubber {
 	{
 
 		RB_PROFILE_FUNC();
-		if (s_Data.m_ValidIndexCount >= s_Data.MAX_INDEX_NUMBER_PER_DRAW) {
-			flush();
-		}
 
 		glm::mat4 tsMatrix = glm::scale(
 			glm::rotate(
@@ -260,6 +240,10 @@ namespace Rubber {
 	void Renderer2D::flush()
 	{
 		RB_PROFILE_FUNC();
+		if (s_Data.m_ValidIndexCount == 0) {
+			return;
+		}
+
 		s_Data.m_VBO->uploadVertexData(s_Data.m_Vertices, static_cast<uint32_t>((s_Data.m_VerticesInsertPosPtr - s_Data.m_Vertices)) * static_cast<uint32_t> (sizeof(Vertex)));
 		for(uint32_t i = 0;  i < s_Data.m_ValidTextureCount ; ++i){
 			s_Data.m_TexturesMap[i]->bind(i);
@@ -289,6 +273,11 @@ namespace Rubber {
 	{
 		RB_PROFILE_FUNC();
 
+		// Resolve slots only after a quad-capacity flush has reset the batch.
+		if (s_Data.m_ValidIndexCount >= s_Data.MAX_INDEX_NUMBER_PER_DRAW) {
+			flush();
+		}
+
 		float texIndex = 0.0f;
 		// check if we already have this texture, if we do, reuse
 		for (uint32_t i = 1; i < s_Data.m_ValidTextureCount; i++) {
@@ -299,7 +288,9 @@ namespace Rubber {
 		}
 
 		if (texIndex == 0.0f) { // new texture has been passed in, store it in a new texture slot
-			RB_CORE_ASSERT(s_Data.m_ValidTextureCount < s_Data.MAX_TEXTURE_SLOTS, "Cannot have more new textures, slot run out!");
+			if (s_Data.m_ValidTextureCount == s_Data.MAX_TEXTURE_SLOTS) {
+				flush();
+			}
 			s_Data.m_TexturesMap[s_Data.m_ValidTextureCount] = texture;
 			texIndex = static_cast<float> (s_Data.m_ValidTextureCount);
 			s_Data.m_ValidTextureCount++;
@@ -332,6 +323,10 @@ namespace Rubber {
 	void Renderer2D::drawColorQuad(const glm::mat4& transformation, const glm::vec4& color, float  tillingFacor /*= 1.f*/, const glm::vec4& tintColor /*= glm::vec4(1.0f)*/)
 	{
 		RB_PROFILE_FUNC();
+		if (s_Data.m_ValidIndexCount >= s_Data.MAX_INDEX_NUMBER_PER_DRAW) {
+			flush();
+		}
+
 		//scale->translation
 		const float texIndex = 0.0f; // in this function we only draw color, no texture (white texture by default)
 		for (int i = 0; i < 4; i++) {
