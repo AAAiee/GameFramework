@@ -757,3 +757,30 @@ called CreateFontsTexture and exited 0 without invoking GL. `git diff --check`
 passed. Windows Debug/Release regression and script
 execution, including completed fractional/zero-size observations, remain pending
 the host; this container has no compatible GL/window runtime for those checks.
+
+## F06 completed Windows acceptance and docking fixture repair
+
+The earlier pending and failed attempts above are historical. On 2026-10-17,
+the Windows host rebuilt the full solution in Debug and Release at `29938bf`.
+Both configurations passed the complete Regression suite, the scene-hooks,
+camera-inverse, renderer-batches, entity-tags and viewport-pixels selectors,
+and Tests/Windows/issue-17.ps1, all with exit 0 and their required PASS markers.
+The host report is `.sandcastle/logs/spec-11/issue-17-fixed-29938bf/results.json`
+(with a companion results.md) in the Editor checkout; its commit field contains
+the full validated SHA. Documentation followups receive their own matching-SHA
+host reports before review.
+
+Attempt 3 passed the full Debug suite but its standalone viewport selector
+enabled docking for the first time on frame two, triggering the pinned ImGui
+initialization assertion. The fixture now starts with docking enabled, matching
+ImGuiLayer::onAttach, then renders with docking disabled and enabled again.
+It retains the exact prior WindowMinSize.x assertion for every rendered frame.
+
+Automated OBSERVED results in both configurations establish that a stable
+800.5x600.5 panel retains the 800x600 framebuffer and attachments; zero, negative
+and subpixel-to-zero extents preserve usable framebuffer and camera state;
+changed pixels reach framebuffer, queued events and cameras; dockspace rendering
+restores style; and real New/Open scene operations use integer pixels or the
+last usable framebuffer for fractional and unusable extents. These observations
+come from actual editor fixture assertions with real GL/ImGui backends on the
+private regression desktop. Human manual observations were not performed.
