@@ -2,6 +2,12 @@
 #include <functional>
 
 namespace Rubber {
+	/** Manually driven timer with an owned callback; durations and update ts are seconds.
+     * Supply a positive duration and nonnegative delta; inputs are not validated.
+     * onUpdate invokes at most one timeout per call and subtracts one interval,
+     * even when several elapsed. Callback executes inline and must not destroy
+     * this timer. Pause retains elapsed time; resume continues; restart clears
+     * elapsed/completion state but does not resume a paused timer. */
 	class AnimationTimer {
 	private:
 		using onTimeOutFunc = std::function<void()>;

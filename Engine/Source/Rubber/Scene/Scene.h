@@ -29,8 +29,9 @@ namespace Rubber {
 		void removeEntity(Entity entity);
         /** Returns this scene's borrowed registry; direct mutations bypass component hooks. */
 		entt::registry& getRegistry();
-		/** Stores usable positive pixel dimensions for later camera construction hooks.
-         * Does not update existing cameras; publishViewportResize queues that delivery. */
+		/** Requires usable positive pixel dimensions; stores them for later camera construction hooks.
+         * The Debug assertion is not complete input validation. Does not update
+         * existing cameras; publishViewportResize queues that delivery. */
 		void updatesViewportSize(glm::vec2 dimensions);
         /** Queues the stored pixel dimensions for WindowSystem; delivery is deferred. */
 		void publishViewportResize();

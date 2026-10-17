@@ -11,13 +11,14 @@
 
 namespace Rubber {
 
-    // Per-event-type static subscriptions survive manager/Application destruction.
-    // Names are owned copies of the exact view, unique and nonempty within T;
-    // unregister requires an existing name. Callers must unsubscribe before any
-    // captured objects die. Handlers borrow the event for the duration of the call.
-    // Registration order is delivery order; true consumes and stops delivery.
-    // Already handled events are skipped. Registering/unregistering during delivery
-    // can invalidate vector iteration and is unsupported; access is unsynchronized.
+    /** Per-event-type static subscriptions survive manager/Application destruction.
+     * Names are owned copies of the exact view, unique and nonempty within T;
+     * unregister requires an existing name. Callers must unsubscribe before any
+     * captured objects die. Handlers borrow the event for the duration of the call.
+     * Registration order is delivery order; true consumes and stops delivery.
+     * Already handled events are skipped. Registering/unregistering during delivery
+     * can invalidate vector iteration and is unsupported; access is unsynchronized.
+     */
 	template <typename T>
 	class EventBus{
 

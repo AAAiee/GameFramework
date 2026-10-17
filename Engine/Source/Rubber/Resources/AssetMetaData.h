@@ -19,6 +19,9 @@ namespace Rubber {
 		virtual operator bool() const { return type != AssetType::None; }
 	};
 	
+	/** Animation import description: filepath is a numbered-image directory for
+     * an atlas, or an image file for a horizontal sprite sheet; frameCount is
+     * the declared number of frames, including missing-image placeholder slots. */
 	struct AnimationResourcesMetaData : public AssetMetaData {
 		AnimationResourcesMetaData() = default;
 

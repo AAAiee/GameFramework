@@ -4,35 +4,42 @@
 
 namespace Rubber{
 
-    // Shared singleton; queues can outlive an Application. enqueue owns a copy
-    // (including handled status); callbacks borrow that copy only during delivery.
-    // dispatchAllEvents delivers the current queue in insertion order, then
-    // promotes the next queue. Newly enqueued events need promotion then delivery
-    // on two calls; events enqueued during delivery arrive on the following call.
-    // Do not recursively dispatchAllEvents from a callback. Subscription mutation
-    // during delivery is unsafe; see EventBus. No thread synchronization is provided.
+    /** Shared singleton; queues can outlive an Application. enqueue owns a copy
+     * (including handled status); callbacks borrow that copy only during delivery.
+     * dispatchAllEvents delivers the current queue in insertion order, then
+     * promotes the next queue. Newly enqueued events need promotion then delivery
+     * on two calls; events enqueued during delivery arrive on the following call.
+     * Do not recursively dispatchAllEvents from a callback. Subscription mutation
+     * during delivery is unsafe; see EventBus. No thread synchronization is provided.
+     */
 	class EventManager{  
 	private:
 		template<typename EventType>
 		using EventHandlerFunc = std::function<bool(const EventType& e)>;
 
 	public: 
+		/** Moves handler into per-type static storage under an exact nonempty name.
+         * name must be unique for EventType; unsubscribe before captured objects die. */
 		template<typename EventType>
 		void subscribe(std::string_view name, EventBus<EventType>::EventHandler&& handler);
 
+		/** Removes an existing exact name for EventType; forbidden during delivery. */
 		template<typename EventType>
 		void unsubscribe(std::string_view name);
 
 
+		/** Copies e into the next queue; captured payload references/pointers remain
+         * the caller's lifetime responsibility through deferred delivery. */
 		template<typename EventType>
 		void enqueue(const EventType& e);
 
 		void dispatchAllEvents(); // in queued order
 
-        // Borrows e and invokes only func synchronously on a type match; no queue
-        // or named subscribers participate. Returns whether the type matched,
-        // independently of consumption. Replaces handled status with func's result,
-        // even if e was already handled. The callback must not retain e's reference.
+        /** Borrows e and invokes only func synchronously on a type match; no queue
+         * or named subscribers participate. Returns whether the type matched,
+         * independently of consumption. Replaces handled status with func's result,
+         * even if e was already handled. The callback must not retain e's reference.
+         */
 		template<typename EventType>
 		bool dispatchEvent(EventType& e, const EventHandlerFunc<EventType>& func); // immediately
 

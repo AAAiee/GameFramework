@@ -26,9 +26,13 @@ namespace Rubber {
 	{
 	public:
 		EditorLayer();
+		/** Loads fonts and creates scene/target after ImGui attachment; subscribes shortcuts. */
 		void onAttach() override;
+		/** Unsubscribes shortcuts; Application destruction does not automatically invoke this hook. */
 		void onDetach();
+		/** ts is fixed elapsed seconds; uses last usable pixel dimensions for scene rendering. */
 		void onUpdate(const float ts) override;
+		/** Requires an active ImGui frame; presents target and edits scene through panels. */
 		void onImGuiRender() override;
 
         /** Grants the first-party runtime fixture access to the active editor scene. */

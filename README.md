@@ -2,6 +2,8 @@
 
 **English** | [简体中文](README.zh-CN.md) | [GameExample branch](https://github.com/AAAiee/GameFramework/tree/GameExample)
 
+[Codebase reading guide](docs/codebase-guide.md) · [Validation evidence and limitations](docs/validation/spec-11.md)
+
 RB is an educational 2D engine project written with **C++20, OpenGL, EnTT, and Dear ImGui**. The `Editor` branch contains a scene editor for managing entities, editing components, previewing scenes, and saving and reloading `.rubber` scene files.
 
 ## Demo

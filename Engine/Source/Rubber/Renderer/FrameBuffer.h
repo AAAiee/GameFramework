@@ -4,6 +4,9 @@
 
 namespace Rubber{
 	
+	/** Target dimensions are positive pixels; current GL implementation allocates
+     * one RGBA8 color and depth/stencil attachment. Samples and SwapChainTarget
+     * are stored settings, not implemented multisample/swapchain modes. */
 	struct FrameBufferSpecification{
 		uint32_t m_Width=1280, m_Height=720; 
 		uint32_t m_Samples = 1; 

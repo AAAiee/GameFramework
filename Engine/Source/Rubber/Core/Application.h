@@ -27,19 +27,27 @@ namespace Rubber
 	class  Application
 	{
 	public:
+		/** Constructs the window/render facilities; name is the window title. Requires initialized logging. */
 		Application(const std::string_view name="");
 		virtual ~Application();
 
 	public:
+		/** Borrows the live Application window; requires the single instance to exist. */
 		static Window& getWindow();
+		/** Returns shared access to the process-lived queued event manager. */
 		static Ref<EventManager> getEventManager();;
+		/** Borrows the Application-owned timer pointer; deltas are seconds. */
 		static const Scope<GameLoopTimer>& getTimer();
+		/** Returns shared manager ownership; retained GPU assets still require their GL context. */
 		static Ref<AssetManager> getAssetManager();
 		static void close();
 
 	public:
+		/** Attaches initial layers once, then polls events and renders until close; fixed updates use 1/120 seconds. Minimized time is discarded. */
 		void run();
+		/** Takes ownership of a nonnull layer before overlays; does not call onAttach. */
 		void pushLayer(Layer* layer);
+		/** Takes ownership of a nonnull overlay at the end; does not call onAttach. */
 		void pushOverlay(Layer* layer);
 
 	private:

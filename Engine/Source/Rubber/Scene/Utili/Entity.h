@@ -26,7 +26,9 @@ namespace Rubber{
 		}
 
 
-		/** Runs the construction hook, then adds T and returns a borrowed reference. */
+		/** Runs the construction hook, then adds T and returns a borrowed reference.
+         * Args are forwarded to T; returned storage may expire on removal, relocation
+         * or Scene destruction. Requires a live handle without T and a supported hook. */
 		template <typename T, typename... Args>
 		T& addComponent(Args&&... args){
 			RB_CORE_ASSERT(m_Scene, "Entity must live in a valid scene!");

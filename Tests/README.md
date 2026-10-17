@@ -1,5 +1,96 @@
 # First-party regression checks
 
+## Combined validation for issue #25
+
+Use this section for the combined final-commit run. The per-ticket notes below
+retain historical local checks and pending statuses as of their individual
+changes; they are not the current combined status. The [evidence ledger](../docs/validation/spec-11.md)
+records supplied Windows passes at accepted base `e3bf3fff0f651b072b1357f234b853b3e2a3eea6`,
+including full-suite editor observations. Final #25 generation, Debug/Release
+builds, regressions and all five standalone Windows scripts are pending the host.
+No authoritative Windows acceptance was run in the Linux documentation session.
+
+Run from the repository root in Windows PowerShell with the existing initialized
+submodules and VS2022 MSVC installation. This task does not download dependencies.
+No source-inclusion changes were made by #25; generate anyway for a fresh host
+checkout, and always regenerate when inclusion changes. The solution Rebuild
+includes Engine, Editor and Regression with C++20 and x64.
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$repository = (Get-Location).Path
+$msbuild = 'C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe'
+& '.\Vendor\Binaries\Premake\Windows\premake5.exe' --file=Build.lua vs2022
+if ($LASTEXITCODE -ne 0) { throw 'Premake failed' }
+$selectors = @('scene-hooks', 'camera-inverse', 'renderer-batches', 'entity-tags',
+    'viewport-pixels', 'minimize-restore', 'layer-partition', 'typed-events',
+    'event-names', 'font-atlas', 'atlas-placeholders', 'gl-boundaries', 'gl-buffers')
+foreach ($configuration in @('Debug', 'Release')) {
+    & $msbuild 'Rubber Engine.sln' /t:Rebuild /m "/p:Configuration=$configuration" /p:Platform=x64 /v:minimal /nologo
+    if ($LASTEXITCODE -ne 0) { throw "$configuration Rebuild failed" }
+    $binaryRoot = Join-Path $repository "Binaries\windows-x86_64\$configuration"
+    Push-Location (Join-Path $binaryRoot 'Regression')
+    try {
+        $output = & '.\Regression.exe' 2>&1
+        $result = $LASTEXITCODE
+        $output | Write-Output
+        if ($result -ne 0) { throw "$configuration full suite failed: $result" }
+        foreach ($name in ($selectors + @('editor-issue-12', 'editor-issue-15',
+            'editor-issue-16', 'editor-issue-17', 'editor-issue-18'))) {
+            if ($output -notcontains "PASS: $name") { throw "Missing full-suite marker: $name" }
+        }
+        foreach ($selector in $selectors) {
+            $output = & '.\Regression.exe' $selector 2>&1
+            $result = $LASTEXITCODE
+            $output | Write-Output
+            if ($result -ne 0 -or $output -notcontains "PASS: $selector") {
+                throw "$configuration $selector failed: $result"
+            }
+        }
+    } finally { Pop-Location }
+    foreach ($issue in @(12, 15, 16, 17, 18)) {
+        # A child PowerShell process preserves each script's nonzero exit on throw.
+        $script = Join-Path $repository "Tests\Windows\issue-$issue.ps1"
+        $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -Configuration $configuration -BinaryRoot $binaryRoot 2>&1
+        $result = $LASTEXITCODE
+        $output | Write-Output
+        if ($result -ne 0 -or $output -notcontains "PASS: editor-issue-$issue") {
+            throw "$configuration issue-$issue failed: $result"
+        }
+    }
+}
+```
+
+No arguments run the complete suite; each configured selector prints
+`PASS: <selector>` only after its always-active checks, exits 0 on success,
+and exits nonzero on failure. Unknown selectors exit 2. The five exact script
+paths above accept `-Configuration Debug|Release` and absolute `-BinaryRoot`;
+they check the fixture exit and matching marker before printing their own marker.
+Working files and stdout/stderr logs are placed alongside Regression output.
+Script timeouts are 60 seconds for #12/#16/#18 and 240 seconds for #15/#17.
+They kill only the process they started. Regression initializes a private Windows
+desktop before UI work; failure to isolate or automate throws instead of exposing
+a modal dialog on the input desktop. A compatible real OpenGL driver is required.
+
+| Script | Genuine behavior asserted | Success marker |
+| --- | --- | --- |
+| `Tests/Windows/issue-12.ps1` | Editor attachment/frame rendering, supported components, tag edit and deletion | `PASS: editor-issue-12` |
+| `Tests/Windows/issue-15.ps1` | New/Unicode Save As/Open, cancel, overwrite decline/confirm, capacity rejection | `PASS: editor-issue-15` |
+| `Tests/Windows/issue-16.ps1` | Actual hierarchy input for long/percent/Unicode tags, stable row IDs, selection/deletion | `PASS: editor-issue-16` |
+| `Tests/Windows/issue-17.ps1` | Fractional/zero viewport, real framebuffer/camera events, New/Open, style restoration | `PASS: editor-issue-17` |
+| `Tests/Windows/issue-18.ps1` | Native minimize/restore, suspended fixed updates, resumed 1/120s cadence without backlog | `PASS: editor-issue-18` |
+
+These scripts invoke genuine fixtures compiled with production EditorLayer,
+hierarchy and GL/ImGui code. They do not automate every menu in the standalone
+Editor.exe. The #12 fixture mutates the real scene component API while production
+panels render. The ledger explicitly records this limit. If manual observations
+are required, launch `Editor.exe` from each configuration's `Editor` directory,
+record commit/configuration and observed results for ordinary create/select/edit/
+delete, New/Unicode Save As, cancel/overwrite, viewport collapse/resize and
+minimize/restore; leave unperformed cases marked unrun. No manual pass is claimed
+here. The Windows host owns execution and issue-tracker publication.
+
+
 `Regression` links the production Engine with C++20 and the existing Premake/MSVC
 configuration. Run `Regression.exe` for all checks, `Regression.exe scene-hooks`
 for the hook check, or `Regression.exe camera-inverse` for the inverse projection

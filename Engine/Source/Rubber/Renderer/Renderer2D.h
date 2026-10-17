@@ -29,12 +29,16 @@ namespace Rubber{
 		static void init();
 		static void shutdown();
 
+		/** Copies the projection * view matrix and starts an empty batch. */
 		static void beginScene(const glm::mat4& vpMatrix);
 
 		//legacy, to delete 
 		static void beginScene(const OrthoCamera& camera);
 
 		// Direct Input, Texture
+		/** Appends a centered unit quad scaled/positioned in scene units. Color/tint
+         * are RGBA multipliers; tiling factors multiply normalized UVs. Texture
+         * overloads require nonnull resources; rotated overloads use radians. */
 		static void drawQuad(const glm::vec3& position, const glm::vec2& scale, const glm::vec4& color, float tillingFactor = 1.f, const glm::vec4& tintColor = glm::vec4(1.0f));
 		static void drawQuad(const glm::vec3& position, const glm::vec2& scale, const Ref<Texture2D>& texture, float tillingFactor = 1.f, const glm::vec4& tintColor = glm::vec4(1.0f));
 
@@ -51,11 +55,13 @@ namespace Rubber{
 		static void drawRotatedQuad(const glm::vec3& position, const glm::vec2& scale,  float radians, const Ref<SubTexture2D>& subTexture,
 			const float TillingFactor = 1.f, const glm::vec4& tintColor = glm::vec4(1.0f));
 
-		// Matrix entry points enforce the same limits as convenience wrappers.
-		// texCoord borrows exactly four coordinates for this call (copied into vertices);
-		// nullptr selects full-texture UVs. No pointer to the coordinates is retained.
+		/** Matrix entry points enforce the same limits as convenience wrappers.
+		 * texCoord borrows exactly four coordinates for this call (copied into vertices);
+		 * nullptr selects full-texture UVs. No pointer to the coordinates is retained.
+		 */
 		static void drawTextureQuad(const glm::mat4& transformation, const Ref<Texture2D>& texture, const glm::vec2* texCoord=nullptr, float tillingFacor = 1.f, const glm::vec4& tintColor = glm::vec4(1.0f));
 
+		/** Appends a colored quad using transformation; flushes before capacity is exceeded. */
 		static void drawColorQuad(const glm::mat4& transformation, const glm::vec4& color,  float tillingFacor = 1.f, const glm::vec4& tintColor = glm::vec4(1.0f));
 
 
