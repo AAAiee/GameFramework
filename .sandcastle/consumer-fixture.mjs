@@ -6,6 +6,7 @@ import { join } from "node:path";
 import {
   runWorkflow,
   WorkflowOperationError,
+  createWorkflowPacket,
 } from "@rebuild/sandcastle/workflow";
 import { createCommandRunner } from "@rebuild/sandcastle/workflow/integrations";
 import { withWorkflowRuntime } from "@rebuild/sandcastle/workflow/runtime";
@@ -41,6 +42,45 @@ for (const id of ["A", "B"]) {
     ],
   };
   const candidate = git(root, "rev-parse", "HEAD");
+  const packet = createWorkflowPacket({
+    stage: "implement",
+    task,
+    scope: `Scope only for project ${id}`,
+    branch: `task/${id}`,
+    entrypoints: [`src/${id}.ts`],
+    commands: [`check-${id}`],
+    references: [`docs/${id}.md`],
+  });
+  assert.equal(packet.split(`Requested ${id} behavior works`).length, 2);
+  assert.match(packet, new RegExp(`Scope only for project ${id}`));
+  assert.doesNotMatch(
+    packet,
+    new RegExp(`Scope only for project ${id === "A" ? "B" : "A"}`),
+  );
+  const reviewPacket = JSON.parse(
+    createWorkflowPacket({
+      stage: "review",
+      task,
+      base: "independent-base",
+      candidate,
+      changedPaths: [`src/${id}.ts`],
+      diffCommand: `git diff independent-base ${candidate} --`,
+      validation: {
+        candidate,
+        passed: true,
+        evidence: [`logs/${id}-current.json`],
+      },
+      references: [`docs/${id}.md`],
+    }),
+  );
+  assert.equal(reviewPacket.candidate, candidate);
+  assert.equal(
+    reviewPacket.task.criteria[0].description,
+    `Requested ${id} behavior works`,
+  );
+  assert.deepEqual(reviewPacket.validation.evidence, [
+    `logs/${id}-current.json`,
+  ]);
   const events = [];
   const directories = [];
   let opens = 0;

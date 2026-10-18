@@ -33,11 +33,13 @@ async function editorFixture(
     reportedUsage = false,
     malformedReview = false,
     malformedCorrection = false,
+    inspectPacket,
   } = {},
 ) {
   let invocations = 0;
   const f = fixture(t, async (worktree) => {
     invocations++;
+    if (inspectPacket) inspectPacket({ worktree, prompt: f.calls.at(-1) });
     if (invocations === 1) {
       writeFileSync(
         join(worktree, "value.cjs"),
@@ -94,6 +96,13 @@ async function editorFixture(
   const options = {
     projectId: "fixture-editor-project",
     task,
+    context: {
+      scope: "Double the supplied numeric value in the headless fixture.",
+      base: f.before,
+      entrypoints: ["value.cjs"],
+      commands: ["node --test value.test.cjs"],
+      references: ["source.txt"],
+    },
     runtime: {
       repository: f.root,
       runId: "fixture-task-run",
@@ -194,6 +203,207 @@ async function editorFixture(
   }
   return { f, options, counts: () => ({ invocations, validations }) };
 }
+
+test("SDK receives complete focused packets and can read their on-demand source inside its worktree", async (t) => {
+  const observed = [];
+  const { f, options } = await editorFixture(t, {
+    inspectPacket: ({ worktree, prompt }) => {
+      const packet = JSON.parse(prompt.split("\n").at(-1));
+      if (packet.stage !== "implement") return;
+      const reference = packet.references[0];
+      assert.match(reference, /^\.sandcastle\/context\//);
+      const body = execFileSync(
+        process.execPath,
+        [
+          "-e",
+          "process.stdout.write(require('node:fs').readFileSync(process.argv[1],'utf8'))",
+          reference,
+        ],
+        { cwd: worktree, encoding: "utf8", windowsHide: true },
+      );
+      observed.push(JSON.parse(body));
+      assert.equal(git(worktree, "status", "--porcelain"), "");
+    },
+  });
+  const result = await runEditorTask(options);
+  const implementation = f.calls[0];
+  const review = f.calls[1];
+  assert.match(implementation, /Double the supplied numeric value/);
+  assert.equal(implementation.split("The saved value is doubled").length, 2);
+  assert.match(implementation, /node --test value.test.cjs/);
+  assert.match(review, new RegExp(options.context.base));
+  assert.match(review, new RegExp(result.candidate));
+  assert.match(review, /git diff/);
+  assert.match(review, /value\.cjs/);
+  const packet = JSON.parse(implementation.slice(implementation.indexOf("{")));
+  assert.equal(packet.stage, "implement");
+  assert.equal(packet.task.id, task.id);
+  const reference = packet.references[0];
+  assert.match(reference, /^\.sandcastle\/context\//);
+  assert.equal(observed[0].scope, options.context.scope);
+});
+
+test("repair receives only the failed check with exact readable raw evidence and complete requirements by reference", async (t) => {
+  let repair;
+  const { f, options } = await editorFixture(t, {
+    inspectPacket: ({ worktree, prompt }) => {
+      const packet = JSON.parse(prompt.split("\n").at(-1));
+      if (packet.stage !== "repair") return;
+      repair = packet;
+      assert.equal(
+        JSON.parse(readFileSync(join(worktree, packet.requirements), "utf8"))
+          .task.criteria[0].description,
+        "The saved value is doubled",
+      );
+      const pointer = packet.failures[0].evidence[0].match(
+        /sandbox copy: (.+)\)$/,
+      )[1];
+      assert.equal(
+        readFileSync(join(worktree, pointer), "utf8"),
+        "Expected doubled value, got original\n",
+      );
+    },
+  });
+  options.recovery = {};
+  const validate = options.validate;
+  let first = true;
+  options.validate = async (context) => {
+    if (!first) return validate(context);
+    first = false;
+    const path = join(context.worktree, ".sandcastle/failed-unit.log");
+    writeFileSync(path, "Expected doubled value, got original\n");
+    return {
+      candidate: context.candidate,
+      passed: false,
+      evidence: ["unrelated-history-report.json"],
+      failures: [
+        {
+          check: "host/value-double",
+          diagnostic: "Expected doubled value",
+          evidence: [path],
+        },
+      ],
+    };
+  };
+  assert.equal((await runEditorTask(options)).phase, "ready");
+  assert.equal(repair.failures[0].check, "host/value-double");
+  assert.equal(repair.failures[0].diagnostic, "Expected doubled value");
+  assert.equal(f.calls[1].split("The saved value is doubled").length, 1);
+  assert.doesNotMatch(f.calls[1], /unrelated-history/);
+});
+
+test("format correction reads exact rejected representation on demand without repeating review scope or history", async (t) => {
+  let correction;
+  const { f, options } = await editorFixture(t, {
+    malformedReview: true,
+    inspectPacket: ({ worktree, prompt }) => {
+      const packet = JSON.parse(prompt.split("\n").at(-1));
+      if (packet.stage !== "correction") return;
+      correction = packet;
+      assert.match(
+        readFileSync(join(worktree, packet.output), "utf8"),
+        /this review has malformed JSON: \{broken/,
+      );
+    },
+  });
+  options.reviewOutput = true;
+  const result = await runEditorTask(options);
+  assert.equal(correction.candidate, result.candidate);
+  assert.equal(correction.task, task.id);
+  assert.equal(correction.contract.criteria[0].id, "behavior");
+  assert.doesNotMatch(
+    f.calls[2],
+    /The saved value is doubled|Double the supplied numeric|Independently inspect/,
+  );
+  assert.match(
+    f.calls[2],
+    /Preserve the actual findings and approval\/rejection decision/,
+  );
+});
+
+test("same-candidate packet context changes invalidate independent approval while reusing matching host validation", async (t) => {
+  const { options, counts } = await editorFixture(t);
+  options.evidence = {
+    validation: async () => ({
+      policy: "full-host-v1",
+      dependencies: "fixture-v1",
+      environment: process.version,
+    }),
+    review: async () => "independent-v1",
+  };
+  const first = await runEditorTask(options);
+  const firstContext = read(first.delivery.reference).stageContext;
+  const retainedRequirements = readFileSync(
+    firstContext.requirements.host,
+    "utf8",
+  );
+  const retainedReview = readFileSync(firstContext.review.host, "utf8");
+  options.context.commands.push(
+    "node --test --test-name-pattern=doubles value.test.cjs",
+  );
+  const second = await runEditorTask(options);
+  assert.equal(second.candidate, first.candidate);
+  assert.deepEqual(counts(), { invocations: 3, validations: 1 });
+  assert.notEqual(first.review.identity.inputs, second.review.identity.inputs);
+  assert.notEqual(first.delivery.reference, second.delivery.reference);
+  assert.equal(
+    readFileSync(firstContext.requirements.host, "utf8"),
+    retainedRequirements,
+  );
+  assert.equal(readFileSync(firstContext.review.host, "utf8"), retainedReview);
+  const nextContext = read(second.delivery.reference).stageContext;
+  assert.notEqual(
+    firstContext.requirements.host,
+    nextContext.requirements.host,
+  );
+  assert.notEqual(firstContext.review.host, nextContext.review.host);
+});
+
+test("same reference path with changed bytes requires fresh independent review and preserves immutable evidence", async (t) => {
+  const seen = [];
+  const { f, options, counts } = await editorFixture(t, {
+    inspectPacket: ({ worktree, prompt }) => {
+      const packet = JSON.parse(prompt.split("\n").at(-1));
+      if (packet.stage !== "review") return;
+      const pointer = packet.references
+        .at(-1)
+        .match(/sandbox copy: (.+)\)$/)[1];
+      seen.push(readFileSync(join(worktree, pointer), "utf8"));
+    },
+  });
+  const policy = join(f.root, ".sandcastle/current-policy.md");
+  writeFileSync(policy, "Check all original failure probes.\n");
+  options.context.references = [policy];
+  options.evidence = {
+    validation: async () => ({
+      policy: "full-host-v1",
+      dependencies: "fixture-v1",
+      environment: process.version,
+    }),
+    review: async () => "independent-v1",
+  };
+  const first = await runEditorTask(options);
+  const prior = read(first.delivery.reference).stageContext;
+  const priorRequirements = readFileSync(prior.requirements.host, "utf8");
+  writeFileSync(
+    policy,
+    "Check all original failure probes and their exact JUnit evidence.\n",
+  );
+  const second = await runEditorTask(options);
+  assert.equal(first.candidate, second.candidate);
+  assert.deepEqual(counts(), { invocations: 3, validations: 1 });
+  assert.notEqual(first.review.identity.inputs, second.review.identity.inputs);
+  assert.deepEqual(seen, [
+    "Check all original failure probes.\n",
+    "Check all original failure probes and their exact JUnit evidence.\n",
+  ]);
+  assert.equal(
+    readFileSync(prior.requirements.host, "utf8"),
+    priorRequirements,
+  );
+  await runEditorTask(options);
+  assert.deepEqual(counts(), { invocations: 3, validations: 1 });
+});
 
 test("Editor adapter uses the packaged workflow with the original SDK and hands off only locally", async (t) => {
   const { f, options, counts } = await editorFixture(t);
