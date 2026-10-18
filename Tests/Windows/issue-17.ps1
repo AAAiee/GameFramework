@@ -25,7 +25,7 @@ $stdout = Join-Path $outputDirectory 'issue-17.stdout.log'
 $stderr = Join-Path $outputDirectory 'issue-17.stderr.log'
 $process = $null
 try {
-    $process = Start-Process -WindowStyle Hidden -FilePath $binary -ArgumentList 'editor-issue-17' `
+    $process = Start-Process -FilePath $binary -ArgumentList 'editor-issue-17' `
         -WorkingDirectory $outputDirectory -RedirectStandardOutput $stdout `
         -RedirectStandardError $stderr -WindowStyle Hidden -PassThru
     if (-not $process.WaitForExit(240000)) {
