@@ -2,7 +2,11 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { realpathSync } from "node:fs";
 import { join, sep } from "node:path";
-import { runWorkflow } from "@rebuild/sandcastle/workflow";
+import {
+  extractWorkflowReview,
+  runWorkflow,
+  WorkflowOperationError,
+} from "@rebuild/sandcastle/workflow";
 import { withPreparedWorktree } from "@rebuild/sandcastle/workflow/integrations";
 import { withWorkflowRuntime } from "@rebuild/sandcastle/workflow/runtime";
 import { createWorkflowMeasurements } from "@rebuild/sandcastle/workflow/measurements";
@@ -57,6 +61,7 @@ async function runTask(
     signal,
     recovery: recoveryOptions,
     evidence,
+    reviewOutput,
   },
   runtime,
   sandbox,
@@ -118,6 +123,51 @@ async function runTask(
     config: { branch: sandbox.branch, worktree: sandbox.worktreePath },
   };
   const recovery = recoveryOptions ?? (checkpoint?.recovery ? {} : undefined);
+  const strictReview =
+    reviewOutput === true || checkpoint?.reviewOutputEnabled === true;
+  const review = (context, correction) =>
+    measured(
+      correction ? "review-correction" : "review",
+      context,
+      async (observation) => {
+        const { candidate, validation } = context;
+        const correctionPrompt = correction
+          ? `\n\nThis is the one format-correction request for the independent review. Preserve your actual findings and approval/rejection decision. Reformat only; do not modify code or run implementation repair.\n${JSON.stringify({ previousOutput: context.output, problem: context.problem })}`
+          : "";
+        const result = await sandbox.run({
+          agent: agents.reviewer,
+          prompt: `${prompts.review}\n\n${strictReview ? "Return a final <review> tag on its own line containing strict JSON with task (the exact task.id), candidate, approved, and criteria [{id,satisfied,evidence}]. Close with </review> and no trailing text." : "Return only a JSON object with candidate, approved, and criteria [{id,satisfied,evidence}]."}\n${JSON.stringify({ task: context.task, candidate, validation })}${correctionPrompt}`,
+          maxIterations: 1,
+          signal,
+          logging: {
+            type: "file",
+            path: join(
+              directory,
+              correction ? "review-correction.log" : "review.log",
+            ),
+          },
+        });
+        const usage = result.iterations.at(-1)?.usage;
+        if (usage) observation.usage({ ...usage, scope: "last-message" });
+        if (!strictReview) {
+          const value = JSON.parse(result.stdout);
+          if (value.approved === false) observation.rejected();
+          return value;
+        }
+        try {
+          if (extractWorkflowReview(result.stdout, context).approved === false)
+            observation.rejected();
+        } catch (cause) {
+          if (
+            !(cause instanceof WorkflowOperationError) ||
+            cause.kind !== "format"
+          )
+            throw cause;
+          // The workflow owns extraction/correction charging. Invocation measurements retain raw output semantics.
+        }
+        return result.stdout;
+      },
+    );
   return runWorkflow({
     project,
     checkpoint,
@@ -133,6 +183,9 @@ async function runTask(
           .digest("hex");
       },
     },
+    reviewOutput: strictReview
+      ? { correct: (context) => review(context, true) }
+      : undefined,
     recovery: recovery && {
       ...recovery,
       reconcile: async (context) => {
@@ -263,22 +316,7 @@ async function runTask(
             }));
           return { ...result, timings };
         }),
-      review: async (context) =>
-        measured("review", context, async (observation) => {
-          const { candidate, validation } = context;
-          const result = await sandbox.run({
-            agent: agents.reviewer,
-            prompt: `${prompts.review}\n\nReturn only a JSON object with candidate, approved, and criteria [{id,satisfied,evidence}].\n${JSON.stringify({ task, candidate, validation })}`,
-            maxIterations: 1,
-            signal,
-            logging: { type: "file", path: join(directory, "review.log") },
-          });
-          const usage = result.iterations.at(-1)?.usage;
-          if (usage) observation.usage({ ...usage, scope: "last-message" });
-          const review = JSON.parse(result.stdout);
-          if (review.approved === false) observation.rejected();
-          return review;
-        }),
+      review: (context) => review(context, false),
       deliver: async (context) =>
         measured("deliver", context, async () => {
           const { candidate, validation, review } = context;

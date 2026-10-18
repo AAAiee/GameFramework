@@ -65,6 +65,8 @@ The single-task, Git/GitHub and package/isolation increments are implemented loc
 and [the current adapter and package pin](PACKAGE-ISOLATION.md).
 Stage/check accounting and the preserved measured fixture baseline are described
 in [measurements](MEASUREMENTS.md).
+The explicit independent review-format policy and its persisted correction budget
+are described in [review output](REVIEW-OUTPUT.md).
 No GitHub ticket has been closed and
 the implementation has not been promoted into the original checkouts.
 

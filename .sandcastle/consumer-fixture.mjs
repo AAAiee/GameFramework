@@ -409,6 +409,75 @@ for (const boundary of ["validate", "review", "deliver"]) {
   await runWorkflow({ ...options, checkpoint: JSON.parse(readFileSync(path)) });
   assert.deepEqual(events, []);
 }
+// Strict review extraction/correction is supplied by the distributable, not Editor.
+{
+  const file = join(process.cwd(), "review-correction.json");
+  const events = [];
+  const portableTask = {
+    id: "portable-review",
+    criteria: [{ id: "C1", description: "Works" }],
+  };
+  const options = {
+    project: { id: "portable-review-consumer", config: {} },
+    reviewOutput: {
+      correct: async ({ task, candidate, output }) => {
+        events.push("correction");
+        assert.equal(
+          JSON.parse(readFileSync(file)).reviewCorrection.consumed,
+          true,
+        );
+        assert.equal(output, "Malformed independent review");
+        return JSON.stringify({
+          task: task.id,
+          candidate,
+          approved: true,
+          criteria: [
+            { id: "C1", satisfied: true, evidence: "Independent inspection" },
+          ],
+        });
+      },
+    },
+    operations: {
+      selectTask: async () => portableTask,
+      implement: async () => {
+        events.push("implement");
+        return "portable-review-candidate";
+      },
+      currentCandidate: async () => "portable-review-candidate",
+      validate: async ({ candidate }) => {
+        events.push("validate");
+        return { candidate, passed: true, evidence: ["portable-host.log"] };
+      },
+      review: async () => {
+        events.push("review");
+        return "Malformed independent review";
+      },
+      deliver: async ({ candidate, review }) => {
+        events.push("deliver");
+        assert.equal(review.task, portableTask.id);
+        return { candidate, reference: "portable-local-handoff" };
+      },
+      save: async (state) => writeFileSync(file, JSON.stringify(state)),
+    },
+  };
+  assert.equal((await runWorkflow(options)).phase, "ready");
+  assert.equal(
+    (
+      await runWorkflow({
+        ...options,
+        checkpoint: JSON.parse(readFileSync(file)),
+      })
+    ).phase,
+    "ready",
+  );
+  assert.deepEqual(events, [
+    "implement",
+    "validate",
+    "review",
+    "correction",
+    "deliver",
+  ]);
+}
 console.log(
-  "PASS: independent packaged A then B; success, failed validation, durable review resume, preserved consumer budget and foreign-checkpoint refusal",
+  "PASS: independent packaged A then B; success, failed validation, durable review resume, single persisted review correction, preserved consumer budget and foreign-checkpoint refusal",
 );
