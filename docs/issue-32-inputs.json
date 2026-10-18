@@ -1,0 +1,272 @@
+{
+  "editor": {
+    "parent": "317bd1b93e632b70700f52407c5b66c81e5cbce3",
+    "commit": "edb928f0dc2c17f200214b819bb632f14acaba0d",
+    "fingerprint": "40e6d827ee1918b297973f46e9e54358f34099bb7fde95d096b194d7e1b95c8b",
+    "files": [
+      {
+        "path": ".sandcastle/.gitignore",
+        "sha256": "5ff7a430946d58f853b3b6bc2163c8e2a9dadfffb529dc865d0dcf493a727987"
+      },
+      {
+        "path": ".sandcastle/CODING_STANDARDS.md",
+        "sha256": "ae60171121891cc58d7df8c2099b6319eaed6b787816dcdbdd3e402c7346a16e"
+      },
+      {
+        "path": ".sandcastle/WORKFLOW.md",
+        "sha256": "4401185af742a4976b139c205acdd6e06464bb7bf1128239876211426ae4118d"
+      },
+      {
+        "path": ".sandcastle/acceptance.mjs",
+        "sha256": "c5913b5803a25ebe0a4db3289b0900a8a999522b5e732f73a7a51c819a5ad18e"
+      },
+      {
+        "path": ".sandcastle/acceptance.test.mjs",
+        "sha256": "fd0f98a40c9667b72d2ac2ec6792f1d07fc068031b6757671ed454e93d0fef29"
+      },
+      {
+        "path": ".sandcastle/dependencies.mjs",
+        "sha256": "487c40ed92338abddcc5fe1894b441e35da1c6f2f93bb04fbd610a296ed0e786"
+      },
+      {
+        "path": ".sandcastle/dependencies.test.mjs",
+        "sha256": "e2cf1da2f58d3a6c56a2c878552e3bc8370707b466cee778f3bbb37793d93546"
+      },
+      {
+        "path": ".sandcastle/docker-smoke.mjs",
+        "sha256": "29088f2a7980b451d7555896184ad5d48f5e88ebd7b9a33eaef9c51aa2820afa"
+      },
+      {
+        "path": ".sandcastle/github.test.mjs",
+        "sha256": "8a9ffb6babedcc4bb322266654cee04f85af6efb5e6052f9a4c5d383a971332c"
+      },
+      {
+        "path": ".sandcastle/host.mjs",
+        "sha256": "bf006d3276cb514ec6d7142a6e6d5b351e94cc87959c2093ca9460524d29610a"
+      },
+      {
+        "path": ".sandcastle/implement-prompt.md",
+        "sha256": "007bd39f9bb40df8fa46360162eec589c8d4d216b9417bbf852ce64b78f56514"
+      },
+      {
+        "path": ".sandcastle/linux-tests.mjs",
+        "sha256": "869d4b953fd9d67c59c8375e19eb06ed6010c70e9b0820c570c30111c21e9186"
+      },
+      {
+        "path": ".sandcastle/main.mts",
+        "sha256": "62ebd2671065438eb648961446c74c05f428e6f16486a0393c73906949f64c9b"
+      },
+      {
+        "path": ".sandcastle/package-smoke.mjs",
+        "sha256": "858764ed61297d4c5e528ee75c4b2c68a7d022bcf1c223e42d8317b9038d1da4"
+      },
+      {
+        "path": ".sandcastle/queue.test.mjs",
+        "sha256": "c4a57e623c90c1aeba81af95ac28e40954f5db9d51458623f67007d07b6b5030"
+      },
+      {
+        "path": ".sandcastle/resources.mjs",
+        "sha256": "708142b54ff7050360185f6ee0ab6e002fb0dd412a8e5f76c92830bee7d4bef5"
+      },
+      {
+        "path": ".sandcastle/review-format-prompt.md",
+        "sha256": "221e210dfc837548b88b30c1120873e731669ceafd2bd102fd057c06e83d318b"
+      },
+      {
+        "path": ".sandcastle/review-prompt.md",
+        "sha256": "25ade9f691b63282a91e8465c5607877c781e3e19fe64c4599e560f77bba24cf"
+      },
+      {
+        "path": ".sandcastle/runtime.mjs",
+        "sha256": "d43e5b377ed910b61e6da3f354a27030fdfd24e6a169b208536edb54d4b427f4"
+      },
+      {
+        "path": ".sandcastle/runtime.test.mjs",
+        "sha256": "501012b281ef87ed90273ae349bd84259e5762435373d325e0c99015433e3d4e"
+      },
+      {
+        "path": ".sandcastle/task.mjs",
+        "sha256": "df87ba9d59893d9e67287055fefdee8b7b214a94d66b673b36e6a244ecca95c6"
+      },
+      {
+        "path": ".sandcastle/update-package.mjs",
+        "sha256": "ad269034c0060ce178d9061bb72cd31013bb60b61300cfa029f477555ebf94da"
+      },
+      {
+        "path": ".sandcastle/vendor/sandcastle-0.12.0-6bb9e42e1f52.tgz",
+        "sha256": "6bb9e42e1f52fba0abc6af4dea5e099eaa35e9ad4fe76ecadca66c7171c37e9a"
+      },
+      {
+        "path": ".sandcastle/workflow-config.mjs",
+        "sha256": "8d0fcfae2d657ef9ded9e56d5da38e71387c40fece4eb4b4b56130348da7877d"
+      },
+      {
+        "path": ".sandcastle/workflow.mjs",
+        "sha256": "c3a5f8b5b35b4d4403d73f8edb35abdecf1f1523546a2c7d4e3112628476702d"
+      },
+      {
+        "path": ".sandcastle/workflow.test.mjs",
+        "sha256": "59672efe080010545223a4e5c11a6a2ecb7fbac6a126cfceea16495047e5651d"
+      },
+      {
+        "path": ".scratch/issue-28-baseline/.sandcastle/.gitignore",
+        "sha256": "99f4b289f66e752935631a236e4f8a7dc1d4603fd2d74b3d48291b3c6645a06a"
+      },
+      {
+        "path": ".scratch/issue-28-baseline/.sandcastle/CODING_STANDARDS.md",
+        "sha256": "ae60171121891cc58d7df8c2099b6319eaed6b787816dcdbdd3e402c7346a16e"
+      },
+      {
+        "path": ".scratch/issue-28-baseline/.sandcastle/WORKFLOW.md",
+        "sha256": "df6099707bf9fac1cf70d81f3e39cddf7645975bad2a56e12e9115bc4e893cff"
+      },
+      {
+        "path": ".scratch/issue-28-baseline/.sandcastle/github.test.mjs",
+        "sha256": "7e817fb13c23544cb85864030c592fec6fc32c0471a1398179db680b19797971"
+      },
+      {
+        "path": ".scratch/issue-28-baseline/.sandcastle/host.mjs",
+        "sha256": "10b9446b9589489451309cc13945fc83e871e5b452732493961ecf0ea9f9d3d6"
+      },
+      {
+        "path": ".scratch/issue-28-baseline/.sandcastle/implement-prompt.md",
+        "sha256": "34690ec20f9a22ff50ad92e3f9752749a8a66c612378b73932f3a38048aaadfa"
+      },
+      {
+        "path": ".scratch/issue-28-baseline/.sandcastle/main.mts",
+        "sha256": "3015e68fb6e187660d87d261f4c1d168fa23b0d69085ce7b657a5a5c33c6e8b9"
+      },
+      {
+        "path": ".scratch/issue-28-baseline/.sandcastle/review-prompt.md",
+        "sha256": "9fb847f58e5015f9abfb933675ab7cee30073983d38ad0241dd7a5bd78dca31c"
+      },
+      {
+        "path": ".scratch/issue-28-baseline/.sandcastle/workflow-config.mjs",
+        "sha256": "5c06c5aad30b3a1f4d63dcee3e34ffe23bb1cc27039e3b13932e9a54e380c752"
+      },
+      {
+        "path": ".scratch/issue-28-baseline/.sandcastle/workflow.mjs",
+        "sha256": "57170087e85f6b8a7a5809c529aec62b7c82d9b833792baba0d5325e8c7214e6"
+      },
+      {
+        "path": ".scratch/issue-28-baseline/.sandcastle/workflow.test.mjs",
+        "sha256": "974a864725a60d433bc0ddae21ab41f7109b3142201c28ef5ec824e787f8935b"
+      },
+      {
+        "path": ".scratch/issue-28-baseline/Scripts/Validate-Windows.md",
+        "sha256": "f1660026e6b67b53b948e96ef2705360d5d229a58a50d3f4a016daf8daf2b9ea"
+      },
+      {
+        "path": ".scratch/issue-28-baseline/Scripts/Validate-Windows.ps1",
+        "sha256": "6eec8d20c6eb105d6445afbf3097375ced895cc9524998c86f985967baeaf7c5"
+      },
+      {
+        "path": ".scratch/issue-28-baseline/manifest.json",
+        "sha256": "8bcdfed0115945e50b7892c8de8ef867f0873b45d3daee55d803aa00f9aa109e"
+      },
+      {
+        "path": ".scratch/issue-28-baseline/package-lock.json",
+        "sha256": "78f8b0e575fdb773ebf88d7f54e4e5dcbc99119d2e8573d848b8851d5b182db4"
+      },
+      {
+        "path": ".scratch/issue-28-baseline/package.json",
+        "sha256": "a4c5b354349d1dbf49d251d863f9c551040b3f99cc8ddfe429c29421c17bd857"
+      },
+      {
+        "path": "CODING_STANDARDS.md",
+        "sha256": "0f16d668be538e3fa69b466564194d72d479524548f401cf46c1e180860ce33d"
+      },
+      {
+        "path": "GLOSSARY.md",
+        "sha256": "fc74b2db01268daba03151e058b3626b4472ad30dabe66adf5547c4c4738d7fa"
+      },
+      {
+        "path": "Scripts/Validate-Windows.md",
+        "sha256": "31d6152fff4b2f2b1c7df99dfca2568cdcf3fe3df2c8d1169a3308594e222f90"
+      },
+      {
+        "path": "Scripts/Validate-Windows.ps1",
+        "sha256": "40f47ab84cd75fc28c0f570e32bc05e4fa30dcded7bc54fc814d3b341b7bfd62"
+      },
+      {
+        "path": "package-lock.json",
+        "sha256": "10008ec9fb16b00cf9303b0ba0cc9ea95015eb4b9d09978733ac1ab8564c62ee"
+      },
+      {
+        "path": "package.json",
+        "sha256": "66270f9da6c929510c82b26078d8e176afe44fe58e48857689fcf266c96c5bac"
+      }
+    ]
+  },
+  "fork": {
+    "parent": "7a4e7f7d93056600d979d79a090256feddf653ea",
+    "commit": "fcec9e6d62837685d8dc6e56cef9b35712db8ccb",
+    "fingerprint": "bc0fdbca4c6601c013793f9f087d9279366ba76233d13d16ca918ccd4aa4ac55",
+    "files": [
+      {
+        "path": ".changeset/README.md",
+        "sha256": "350b53a835fed10b0847944a9342e194ba93d28ec52123a62395b5006bf8bd92"
+      },
+      {
+        "path": ".changeset/config.json",
+        "sha256": "24cfe202cecc80bad65ef341c95117dc833af892d2461a443a9a00bd6ff82bef"
+      },
+      {
+        "path": ".changeset/fix-readme-quick-start-step-numbering.md",
+        "sha256": "39e68a3e6d0be0c97e7e14b24ccde037567cf52343cf6cd9ac1e8255240c2b1c"
+      },
+      {
+        "path": ".changeset/stable-afk-task-boundary.md",
+        "sha256": "2d907b25ab64137d3b91007a2185cdc99f185961246dff6f91d0cfba0b87a9a9"
+      },
+      {
+        "path": "package-lock.json",
+        "sha256": "14732f7278b61106c656e57e2a06d066d452c26ad19a9df96909eeb9adb3de5a"
+      },
+      {
+        "path": "package.json",
+        "sha256": "38d58018182ef0d36cbf4070ee9476668ee390a7cab44ed1aadcc0f29a7b988d"
+      },
+      {
+        "path": "scripts/check-public-types-effect-free.mjs",
+        "sha256": "a41f3ca87a6f2f2d6b16b8054be6d3c655635e7b40bb1f2dd54d6067d6f3ac96"
+      },
+      {
+        "path": "scripts/copy-assets.mjs",
+        "sha256": "24697fecce7082b4cbb1178b327d4362175acedbba29800d9b7555e0c274ad8e"
+      },
+      {
+        "path": "src/workflow/executor.mjs",
+        "sha256": "fd400050e17dc7a857ff33d0b989387552db203e869fa5ddf74bf24d060ba28b"
+      },
+      {
+        "path": "src/workflow/executor.test.mjs",
+        "sha256": "b9a7995a1f586e1999d538c4bc92f5b32817471b4eb3c64ced01cd8c0a96eaf1"
+      },
+      {
+        "path": "src/workflow/host.mjs",
+        "sha256": "bdb7eca80c76df5352f34aea3e5006779c4a8f7b0dd593ddc09b39598782e547"
+      },
+      {
+        "path": "src/workflow/runner.mjs",
+        "sha256": "2926ab9560e295c5cd75b780bb6114a0578c1dbf169cd240386b1004b96ee31a"
+      },
+      {
+        "path": "src/workflow/supervisor.mjs",
+        "sha256": "8572894cf526c9a3ba85e08bbb8ba689a922a2ef96009874e99f0d51d7b33aff"
+      },
+      {
+        "path": "src/workflow/supervisor.test.mjs",
+        "sha256": "42bb53a43b7638d5ad0935a1ee2445b4c53159e7479bc7712c9bd581c160c915"
+      },
+      {
+        "path": "src/workflow/workspace.mjs",
+        "sha256": "cc55cd0616258b1ee64f4a1de1f00b3b96be53d5122576b1fd6fc25e071a82c5"
+      },
+      {
+        "path": "src/workflow/workspace.test.mjs",
+        "sha256": "84cf0d86db031dddf87434d6a2c383779815f91bc3392fa2fdf3f18cab273f79"
+      }
+    ]
+  }
+}
