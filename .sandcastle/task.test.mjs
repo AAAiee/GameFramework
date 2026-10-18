@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createSandbox } from "@ai-hero/sandcastle";
@@ -27,6 +28,8 @@ async function editorFixture(
     rejectValidation = false,
     interruptReview = false,
     preparedValidation = false,
+    measuredCheck = false,
+    reportedUsage = false,
   } = {},
 ) {
   let invocations = 0;
@@ -43,7 +46,19 @@ async function editorFixture(
       );
       git(worktree, "add", "value.cjs", "value.test.cjs");
       git(worktree, "commit", "-m", "Implement fixture behavior");
-      return success("Implementation committed");
+      const result = success("Implementation committed");
+      if (reportedUsage)
+        result.stdout +=
+          "\n" +
+          JSON.stringify({
+            type: "turn.completed",
+            usage: {
+              input_tokens: 100,
+              cached_input_tokens: 80,
+              output_tokens: 7,
+            },
+          });
+      return result;
     }
     if (interruptReview && invocations === 2)
       return {
@@ -85,8 +100,30 @@ async function editorFixture(
       implement: "Implement the supplied task and commit locally.",
       review: "Independently inspect the candidate and evidence.",
     },
-    validate: async ({ worktree, candidate }) => {
+    validate: async ({ worktree, candidate, measureCheck }) => {
       validations++;
+      if (measuredCheck) {
+        return measureCheck("host-node-value", async () => {
+          const environment = { ...process.env };
+          delete environment.NODE_TEST_CONTEXT;
+          const output = execFileSync(
+            process.execPath,
+            ["--test", "value.test.cjs"],
+            {
+              cwd: worktree,
+              encoding: "utf8",
+              windowsHide: true,
+              env: environment,
+            },
+          );
+          assert.match(output, /# pass 1/);
+          return {
+            candidate,
+            passed: !rejectValidation,
+            evidence: ["Host node --test value.test.cjs passed"],
+          };
+        });
+      }
       const environment = { ...process.env };
       delete environment.NODE_TEST_CONTEXT;
       const output = execFileSync(
@@ -163,6 +200,86 @@ test("Editor adapter uses the packaged workflow with the original SDK and hands 
   assert.deepEqual(counts(), { invocations: 2, validations: 1 });
 });
 
+test("Editor persists stage and individual host-check measurements and preserves them on resume", async (t) => {
+  const { options } = await editorFixture(t, { measuredCheck: true });
+  const result = await runEditorTask(options);
+  const report = read(join(options.storage, "measurements.json"));
+  assert.deepEqual(
+    report.records.map((record) => [
+      record.stage,
+      record.check,
+      record.outcome,
+    ]),
+    [
+      ["implement", undefined, "succeeded"],
+      ["validate", undefined, "succeeded"],
+      ["validate", "host-node-value", "succeeded"],
+      ["review", undefined, "succeeded"],
+      ["deliver", undefined, "succeeded"],
+    ],
+  );
+  for (const record of report.records) {
+    assert.ok(Number.isFinite(record.durationMs) && record.durationMs >= 0);
+    assert.equal(record.tokens.totalInput, null);
+    assert.match(record.unavailable.join(" "), /usage/);
+  }
+  const handoff = read(result.delivery.reference);
+  assert.equal(handoff.validation.timings[0].check, "host-node-value");
+  assert.ok(handoff.validation.timings[0].durationMs >= 0);
+  await runEditorTask(options);
+  assert.deepEqual(read(join(options.storage, "measurements.json")), report);
+  if (process.env.SANDCASTLE_BASELINE_OUTPUT) {
+    writeFileSync(
+      process.env.SANDCASTLE_BASELINE_OUTPUT,
+      JSON.stringify(
+        {
+          schema: 1,
+          captured: new Date().toISOString(),
+          kind: "extracted-workflow-scripted-agent-host-check-baseline",
+          candidate: result.candidate,
+          environment: {
+            node: process.version,
+            platform: process.platform,
+            arch: process.arch,
+            measurementModuleSha256: createHash("sha256")
+              .update(
+                readFileSync(
+                  new URL(
+                    "../node_modules/@rebuild/sandcastle/dist/workflow-measurements.js",
+                    import.meta.url,
+                  ),
+                ),
+              )
+              .digest("hex"),
+            originalSdk: "0.12.0",
+          },
+          limitations: [
+            "Scripted agent transport with real Git and host Node assertions; no live model or Editor native acceptance.",
+            "Cumulative model usage is unavailable; null is not zero.",
+            "Stage and nested check timings overlap; they are not summed as end-to-end duration.",
+            "Single fixture task and machine observation; no optimization savings claim.",
+          ],
+          report,
+        },
+        null,
+        2,
+      ) + "\n",
+    );
+  }
+});
+
+test("Editor preserves original SDK usage scope and does not double count Codex cached input", async (t) => {
+  const { options } = await editorFixture(t, { reportedUsage: true });
+  await runEditorTask(options);
+  const record = read(join(options.storage, "measurements.json")).records[0];
+  assert.deepEqual(record.observedUsage, {
+    scope: "last-message",
+    tokens: { totalInput: 100, cachedInput: 80, freshInput: 20, output: 7 },
+  });
+  assert.equal(record.tokens.totalInput, null);
+  assert.match(record.unavailable.join(" "), /Stage totals.*last-message/);
+});
+
 test("Editor host rejection prevents reviewer invocation and local handoff", async (t) => {
   const { options, counts } = await editorFixture(t, {
     rejectValidation: true,
@@ -174,6 +291,12 @@ test("Editor host rejection prevents reviewer invocation and local handoff", asy
     "validate",
   );
   assert.equal(existsSync(join(options.storage, "handoff.json")), false);
+  assert.deepEqual(
+    read(join(options.storage, "measurements.json")).records.map(
+      (record) => record.outcome,
+    ),
+    ["succeeded", "rejected"],
+  );
 });
 
 test("Editor reloads a review checkpoint without repeating implementation or host validation", async (t) => {
@@ -185,6 +308,15 @@ test("Editor reloads a review checkpoint without repeating implementation or hos
   assert.equal(read(join(options.storage, "checkpoint.json")).phase, "review");
   assert.equal((await runEditorTask(options)).phase, "ready");
   assert.deepEqual(counts(), { invocations: 3, validations: 1 });
+  assert.deepEqual(
+    read(join(options.storage, "measurements.json"))
+      .records.filter((record) => record.stage === "review")
+      .map((record) => [record.attempt, record.outcome]),
+    [
+      [1, "failed"],
+      [2, "succeeded"],
+    ],
+  );
 });
 
 test("Editor validates in a separate prepared worktree and restores its edits and cache", async (t) => {
