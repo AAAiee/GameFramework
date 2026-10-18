@@ -341,6 +341,74 @@ for (const boundary of ["validate", "review", "deliver"]) {
     assert.equal(events.filter((event) => event === "deliver").length, 1);
   }
 }
+// Project-owned identities also work in this installed, non-Editor consumer.
+{
+  const path = join(process.cwd(), "evidence-resume.json");
+  const events = [];
+  let host = "actual-host-a";
+  const options = {
+    project: { id: "independent-evidence", config: {} },
+    recovery: {},
+    evidence: {
+      validation: async () => ({
+        policy: "full-v1",
+        dependencies: "pinned-v1",
+        environment: host,
+      }),
+      review: async () => "review-policy-v1",
+    },
+    operations: {
+      selectTask: async () => ({
+        id: "portable-evidence",
+        criteria: [{ id: "C1", description: "Works" }],
+      }),
+      implement: async () => {
+        events.push("implement");
+        return "same-candidate";
+      },
+      currentCandidate: async () => "same-candidate",
+      validate: async () => {
+        events.push("validate");
+        return {
+          candidate: "same-candidate",
+          passed: true,
+          evidence: ["host-current.log"],
+        };
+      },
+      review: async () => {
+        events.push("review");
+        return {
+          candidate: "same-candidate",
+          approved: true,
+          criteria: [
+            {
+              id: "C1",
+              satisfied: true,
+              evidence: "Reviewed current host report",
+            },
+          ],
+        };
+      },
+      deliver: async () => {
+        events.push("deliver");
+        return { candidate: "same-candidate", reference: "local-receipt" };
+      },
+      save: async (state) => writeFileSync(path, JSON.stringify(state)),
+    },
+  };
+  await runWorkflow(options);
+  host = "actual-host-b";
+  events.length = 0;
+  const result = await runWorkflow({
+    ...options,
+    checkpoint: JSON.parse(readFileSync(path)),
+  });
+  assert.deepEqual(events, ["validate", "review", "deliver"]);
+  assert.equal(result.recovery.implementationAttempts, 1);
+  events.length = 0;
+  await runWorkflow({ ...options, checkpoint: JSON.parse(readFileSync(path)) });
+  assert.deepEqual(events, []);
+}
 console.log(
   "PASS: independent packaged A then B; success, failed validation, durable review resume, preserved consumer budget and foreign-checkpoint refusal",
 );
