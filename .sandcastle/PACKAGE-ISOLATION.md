@@ -2,7 +2,8 @@
 
 This page records the #35 package/isolation verification. The current package
 updates and measurement/recovery limits are recorded in [MEASUREMENTS.md](MEASUREMENTS.md),
-[RECOVERY.md](RECOVERY.md) and [package-provenance.json](package-provenance.json); archive hashes below are
+[RECOVERY.md](RECOVERY.md), [EVIDENCE.md](EVIDENCE.md) and
+[package-provenance.json](package-provenance.json); archive hashes below are
 the historical #35 artifact.
 
 The fork adds `@ai-hero/sandcastle/workflow/runtime`, and Editor consumes a fixed

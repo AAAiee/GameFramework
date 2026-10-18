@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "revision": "014f16b7dcb99b98ec9d13c70b4f4c1d525dc592",
+  "revision": "f8248556c6c2fbcfa504ed859479ab8566fd2f70",
   "name": "@ai-hero/sandcastle",
   "packageVersion": "0.12.0",
   "filename": "ai-hero-sandcastle-0.12.0.tgz",
-  "sha256": "07f6068740d30c9b3613e018feb8d9ad04be3a0be2c954a10fd3bf06ff42886d",
-  "sourceArchiveSha256": "be577fbba0fc311cca9cb670fafadb6e993416449c3f96134eaf75d2b6858aa8",
+  "sha256": "7d4708dd9325702165c85cf431a209cea7d92acf9bd5d52148f99fb042eb7512",
+  "sourceArchiveSha256": "ec960c1dcd3a44dcd88b4d1434272c667109ba5bdb0a197f785be64d810b512e",
   "lockSha256": "d280c7574a6c848eb432f1acaf512440dbbd38a3e27840330754254c17cde5a9",
   "image": "sha256:34f1e418abc18f4cff5b729a0afadef417326bc36af4a41c20f34984454c5ebb",
   "toolchain": {
@@ -15,7 +15,7 @@
     "arch": "x64"
   },
   "alias": "@rebuild/sandcastle",
-  "archive": ".sandcastle/vendor/sandcastle-0.12.0-07f6068740d3.tgz",
+  "archive": ".sandcastle/vendor/sandcastle-0.12.0-7d4708dd9325.tgz",
   "reproduction": {
     "builds": 1,
     "independentReproduction": "Not repeated for this increment; final artifact reproduction remains a #43 gate."

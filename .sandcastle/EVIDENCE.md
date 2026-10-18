@@ -1,5 +1,14 @@
 # Evidence freshness
 
+The combined #38/#39 integration package selects committed fork revision
+`f8248556c6c2fbcfa504ed859479ab8566fd2f70`. The canonical offline Linux build
+produced archive SHA-256
+`7d4708dd9325702165c85cf431a209cea7d92acf9bd5d52148f99fb042eb7512`.
+The tracked [package-provenance.json](package-provenance.json), vendor archive,
+dependency and lockfile carry the same identity; original registry SDK stays
+exact `0.12.0`. One canonical build was performed for this increment, with
+independent final-artifact reproduction still required by #43.
+
 `runEditorTask({ evidence, ...options })` enables project-owned identity discovery.
 The original fail-fast consumer stays compatible; once an identity-aware
 checkpoint exists, current discovery is mandatory on resume.
