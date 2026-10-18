@@ -26,7 +26,7 @@ const stable = (value) =>
       : value;
 
 const localGit = (cwd, ...args) =>
-  execFileSync("git", args, {
+  execFileSync("git", ["-c", "submodule.recurse=false", ...args], {
     cwd,
     encoding: "utf8",
     windowsHide: true,
@@ -38,6 +38,18 @@ const prerequisite = (message, cause) =>
     `Native prerequisite: ${message}`,
     cause,
   );
+const preparedCommand = (source) =>
+  createCommandRunner({
+    cwd: source,
+    environment: {
+      ...process.env,
+      GIT_ALLOW_PROTOCOL: "file",
+      GIT_NO_LAZY_FETCH: "1",
+      GIT_CONFIG_COUNT: "1",
+      GIT_CONFIG_KEY_0: "submodule.recurse",
+      GIT_CONFIG_VALUE_0: "false",
+    },
+  });
 function childPath(directory, path) {
   if (
     !path ||
@@ -114,7 +126,7 @@ export async function prepareNativeWorktree({
         "Prepared native ownership changed; existing files were preserved.",
       );
     await nativeDependencies({ prepared: path, source, candidate });
-    return { source, path, command: createCommandRunner({ cwd: source }) };
+    return { source, path, command: preparedCommand(source) };
   }
   const links = gitlinks(source, candidate);
   const sources = links.map((link) => {
@@ -172,7 +184,7 @@ export async function prepareNativeWorktree({
       JSON.stringify({ source, path, common, candidate }, null, 2),
       { flag: "wx" },
     );
-    return { source, path, command: createCommandRunner({ cwd: source }) };
+    return { source, path, command: preparedCommand(source) };
   } catch (cause) {
     throw prerequisite(
       `Native creation stopped; preserve ${intent} and ${path} for reconciliation.`,
