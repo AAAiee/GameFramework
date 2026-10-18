@@ -8,6 +8,16 @@ attempt/outcome and available usage. Reload preserves earlier attempts; an
 unfinished measurement is explicitly interrupted, with unknown elapsed time.
 The collector does not decide whether an interrupted operation can be replayed.
 
+The integration package update selects committed fork revision
+`173da157d4673f9894102b3da4347e120899c1af`. Its offline Linux build produced archive
+SHA-256 `4f1e0943250d583f336f391aa173a29fa1179eeba6d4e06a40d9a015d62e7362`;
+[package-provenance.json](package-provenance.json) records the exact source,
+toolchain and build inputs. The tracked archive, dependency and lockfile are
+updated together. One pinned build was performed for this increment; independent
+final-artifact reproduction remains a #43 gate. The preserved timing baseline
+below retains its original Windows development-build identity and is not relabeled
+as a measurement of this integration archive.
+
 The original SDK exposes usage on `result.iterations.at(-1).usage`. Its documented
 last-message snapshot is preserved as `observedUsage`, while cumulative stage token
 totals remain `null`. Codex's SDK input field already excludes cached tokens; the
