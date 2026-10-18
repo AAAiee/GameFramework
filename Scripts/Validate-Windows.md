@@ -59,3 +59,28 @@ compatible run locally. Native evidence additionally observes current compiler,
 MSBuild, installed SDK headers, OS, graphics driver and Premake identities using
 `Inspect-NativeEnvironment.ps1`; a package-builder image cannot stand in for this
 host discovery.
+
+Native commands use the fork's explicit owned-process boundary. On Windows 10+
+with PowerShell 7 it atomically starts the suspended driver in a non-breakaway
+JobObject, then permits execution only after durable ownership receipts. The
+native adapter chooses `completion: "primary"`: the driver awaits all meaningful
+checks; after its exit, remaining owned tool services are terminated and the job
+must report zero active processes before restoration. MSBuild node reuse is
+disabled and each driver/focused UnitTests invocation uses a distinct PDB-server
+endpoint, preventing writes delegated to a preexisting shared tool process.
+These choices follow [MSBuild's node-reuse contract](https://learn.microsoft.com/en-us/visualstudio/msbuild/msbuild-command-line-reference)
+and [Microsoft BuildXL's MSVC endpoint isolation](https://github.com/microsoft/BuildXL/blob/main/Public/Sdk/Experimental/Msvc/Native/Tools/Link/Link.dsc).
+
+Confirmed cancellation stops all owned processes before restoring edits and
+leaves the interrupted operation's existing retry budget available on resume.
+Unknown process ownership prevents restoration and resource release, preserving
+the runtime lock and process receipts. Use the process boundary's explicit
+read-only `reconcile()` plus the runtime's owner-matched recovery procedure;
+never delete a receipt or unlock to force a retry. The generic boundary cannot
+control preexisting external daemons, and currently fails closed on POSIX.
+See the fork's `docs/workflow-process.md` for its platform/ownership contract.
+
+Disposable doctest failure-probe outputs use a short, unique directory directly
+under this prepared worktree's ignored `Binaries` root. This avoids MSVC tracker
+path limits in deep runtime worktrees. Cleanup verifies absolute owned ancestry;
+normal/filtered/failure-probe execution and JUnit assertions stay required.

@@ -467,6 +467,7 @@ export function createEditorNativeValidation({
             reportPath,
           ],
           cwd: worktree,
+          completion: "primary",
           signal,
           timeoutMs: 3 * 60 * 60 * 1000,
         });
@@ -547,6 +548,12 @@ export function createEditorNativeValidation({
           driver: readFileSync(script, "utf8"),
           inspector: readFileSync(inspect, "utf8"),
           adapter: readFileSync(new URL(import.meta.url), "utf8"),
+          processBoundary: readFileSync(
+            new URL(
+              import.meta.resolve("@rebuild/sandcastle/workflow/process"),
+            ),
+            "utf8",
+          ),
         }),
       dependencies: async (context) => {
         const prepared = await context.project.config.validationWorktree(
