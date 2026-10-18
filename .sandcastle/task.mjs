@@ -128,6 +128,7 @@ async function runTask(
     return prepareValidation
       ? await runtime.resource("native-validation", {
           identity: runtime.compatibility,
+          close: (prepared) => prepared.close?.(),
           create: async (directory) => {
             const prepared = await prepareValidation({
               directory,
@@ -178,6 +179,7 @@ async function runTask(
               prepared: prepared.path,
               candidate,
               command: prepared.command,
+              quiescent: prepared.quiescent,
               saveRecovery: (record) =>
                 runtime.save("validation-recovery", record),
             },

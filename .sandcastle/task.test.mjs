@@ -589,3 +589,39 @@ test("Editor prepares before evidence discovery and shares the preserved worktre
   );
   assert.deepEqual(counts(), { invocations: 2, validations: 1 });
 });
+
+test("Editor retains its runtime lock and prepared preservation record when native process ownership is uncertain", async (t) => {
+  const { f, options } = await editorFixture(t, { preparedValidation: true });
+  let quiescent = true;
+  const prepare = options.prepareValidation;
+  options.prepareValidation = async (context) => ({
+    ...(await prepare(context)),
+    quiescent: () => quiescent,
+    close: () => {
+      if (!quiescent) throw new Error("Owned native job remains uncertain");
+    },
+  });
+  options.validate = async () => {
+    quiescent = false;
+    throw new Error("Native supervisor response was lost");
+  };
+  await assert.rejects(runEditorTask(options), { code: "cleanup" });
+  assert.equal(
+    git(options.validationWorktree.path, "rev-parse", "HEAD"),
+    git(f.root, "rev-parse", options.branch),
+  );
+  assert.equal(
+    read(join(options.storage, "validation-recovery.json")).phase,
+    "restoration-required",
+  );
+  const lock = join(f.root, ".git/sandcastle/runtime-v1/writer.lock");
+  assert.equal(
+    JSON.parse(readFileSync(lock, "utf8")).status,
+    "cleanup-required",
+  );
+  assert.ok(
+    git(options.validationWorktree.path, "stash", "list").includes(
+      "sandcastle-preserve:",
+    ),
+  );
+});
