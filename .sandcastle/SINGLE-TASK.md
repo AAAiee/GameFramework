@@ -68,8 +68,10 @@ setup corrections, not additions to production error handling.
 
 `@ai-hero/sandcastle` is still the original exact registry package. Only the
 candidate workflow import uses `@rebuild/sandcastle/workflow`. `package-lock.json`
-pins both independently. `npm.cmd run sandcastle` still performs the original SDK
-check and starts no agents. The inherited prompts are not used by that command.
+pins both independently. In this increment `npm.cmd run sandcastle` performed
+the original SDK check. The subsequent [Git/GitHub increment](GIT-GITHUB.md)
+changes it to explicit read-only queue inspection; `sandcastle:check` retains the
+SDK check. Neither command starts agents or uses the inherited prompts.
 
 Recovery budgets, evidence identity beyond the candidate, review-format repair,
 queue discovery, project locks and automatic reconciliation remain separate

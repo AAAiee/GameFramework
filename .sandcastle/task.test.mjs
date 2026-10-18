@@ -1,9 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createSandbox } from "@ai-hero/sandcastle";
+import { createCommandRunner } from "@rebuild/sandcastle/workflow/integrations";
 import { fixture, git, success } from "./test-fixture.mjs";
 import { runEditorTask } from "./task.mjs";
 
@@ -15,7 +16,11 @@ const read = (path) => JSON.parse(readFileSync(path, "utf8"));
 
 async function editorFixture(
   t,
-  { rejectValidation = false, interruptReview = false } = {},
+  {
+    rejectValidation = false,
+    interruptReview = false,
+    preparedValidation = false,
+  } = {},
 ) {
   let invocations = 0;
   const f = fixture(t, async (worktree) => {
@@ -90,6 +95,35 @@ async function editorFixture(
       };
     },
   };
+  if (preparedValidation) {
+    const prepared = join(f.root, ".sandcastle/native-validation");
+    git(
+      f.root,
+      "worktree",
+      "add",
+      "-b",
+      "native-validation",
+      prepared,
+      f.before,
+    );
+    writeFileSync(join(prepared, "source.txt"), "staged validation edit\n");
+    git(prepared, "add", "source.txt");
+    writeFileSync(
+      join(prepared, "source.txt"),
+      "staged plus unstaged validation edit\n",
+    );
+    writeFileSync(join(prepared, "notes.txt"), "untracked validation notes\n");
+    mkdirSync(join(prepared, ".sandcastle/cache"), { recursive: true });
+    writeFileSync(
+      join(prepared, ".sandcastle/cache/native.bin"),
+      "prepared dependency\n",
+    );
+    options.validationWorktree = {
+      source: f.root,
+      path: prepared,
+      command: createCommandRunner({ cwd: f.root }),
+    };
+  }
   return { f, options, counts: () => ({ invocations, validations }) };
 }
 
@@ -133,4 +167,50 @@ test("Editor reloads a review checkpoint without repeating implementation or hos
   assert.equal(read(join(options.storage, "checkpoint.json")).phase, "review");
   assert.equal((await runEditorTask(options)).phase, "ready");
   assert.deepEqual(counts(), { invocations: 3, validations: 1 });
+});
+
+test("Editor validates in a separate prepared worktree and restores its edits and cache", async (t) => {
+  const { f, options, counts } = await editorFixture(t, {
+    preparedValidation: true,
+  });
+  const prepared = options.validationWorktree.path;
+  const snapshot = () => ({
+    head: git(prepared, "rev-parse", "HEAD"),
+    branch: git(prepared, "branch", "--show-current"),
+    staged: git(prepared, "diff", "--cached", "--binary"),
+    unstaged: git(prepared, "diff", "--binary"),
+    status: git(prepared, "status", "--porcelain"),
+  });
+  const before = snapshot();
+  const result = await runEditorTask(options);
+  assert.equal(result.phase, "ready");
+  assert.deepEqual(counts(), { invocations: 2, validations: 1 });
+  assert.deepEqual(snapshot(), before);
+  assert.equal(
+    readFileSync(join(prepared, "notes.txt"), "utf8"),
+    "untracked validation notes\n",
+  );
+  assert.equal(
+    readFileSync(join(prepared, ".sandcastle/cache/native.bin"), "utf8"),
+    "prepared dependency\n",
+  );
+  const recovery = read(join(options.storage, "validation-recovery.json"));
+  assert.equal(recovery.phase, "restored");
+  assert.match(recovery.stash, /^[a-f0-9]{40}$/);
+  assert.equal(recovery.candidate, result.candidate);
+  assert.equal(git(f.root, "rev-parse", "HEAD"), f.before);
+});
+
+test("Editor preserves an unresolved worktree recovery record on validation resume", async (t) => {
+  const { options, counts } = await editorFixture(t, {
+    rejectValidation: true,
+    preparedValidation: true,
+  });
+  await assert.rejects(runEditorTask(options), { code: "gate" });
+  const path = join(options.storage, "validation-recovery.json");
+  const unresolved = { ...read(path), phase: "restoration-required" };
+  writeFileSync(path, JSON.stringify(unresolved));
+  await assert.rejects(runEditorTask(options), /recovery is unresolved/);
+  assert.deepEqual(read(path), unresolved);
+  assert.deepEqual(counts(), { invocations: 1, validations: 1 });
 });

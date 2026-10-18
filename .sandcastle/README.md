@@ -1,4 +1,4 @@
-# Original SDK baseline and single-task increment
+# Sandcastle pipeline rebuild
 
 The original npm package `@ai-hero/sandcastle@0.12.0` remains pinned and supplies
 agent invocation and worktree lifecycle. The candidate single-task workflow is
@@ -10,7 +10,7 @@ The original published source revision is
 [baseline.json](baseline.json). The separate fork worktree
 `../sandcastleCustomized-pipeline-rebuild` starts at that exact upstream commit.
 The frozen source remains on `rebuild/original-0.12.0`; current changes are on
-`rebuild/33-single-task`. The original Editor baseline is commit `43ada0e`.
+`rebuild/34-git-github`. The original Editor baseline is commit `43ada0e`.
 
 ## Run this increment
 
@@ -20,15 +20,19 @@ From `C:\FinalPolishedProjects\Editor-pipeline-rebuild`:
 npm.cmd ci --offline --ignore-scripts --no-audit --no-fund
 npm.cmd run sandcastle:check
 npm.cmd run sandcastle:test
+npm.cmd run sandcastle
 ```
 
 The offline command requires the already prepared npm cache. Ordinary setup can
 use `npm.cmd ci --ignore-scripts --no-audit --no-fund` with network access.
 
-`npm.cmd run sandcastle` performs the same SDK provenance check. It starts no
-agents and accepts no execution flags. The inherited implementation/review prompt
-files are not loaded. Automated ticket execution remains paused; the original
-template's issue-closing instructions are not enabled.
+`npm.cmd run sandcastle` (also `sandcastle:queue`) reads the real GitHub queue
+using the explicit repository/labels in [project.mjs](project.mjs). It reports
+tracker eligibility and reasons for blocked items. It starts no agents. Missing
+dependency metadata fails eligibility; unavailable discovery is an error, not an
+empty queue. Local handoffs do not close GitHub dependencies automatically.
+`sandcastle:check` separately checks original SDK provenance. Automated ticket
+execution remains paused, and inherited issue-closing prompts are not loaded.
 
 ## Observed baseline
 
@@ -53,8 +57,9 @@ persistent workflow recovery belongs in a separately tested pipeline layer.
 
 ## Rebuild sequence
 
-The first single-task increment is implemented locally. See
-[the adapter and evidence](SINGLE-TASK.md). No GitHub ticket has been closed and
+The single-task and Git/GitHub increments are implemented locally. See
+[the adapter and evidence](SINGLE-TASK.md) and [Git/GitHub evidence](GIT-GITHUB.md).
+No GitHub ticket has been closed and
 the implementation has not been promoted into the original checkouts.
 
 Each increment must have a bounded diff and evidence at its public boundary.

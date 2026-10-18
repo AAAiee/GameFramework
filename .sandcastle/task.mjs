@@ -12,6 +12,7 @@ import {
 } from "node:fs";
 import { join, resolve } from "node:path";
 import { runWorkflow } from "@rebuild/sandcastle/workflow";
+import { withPreparedWorktree } from "@rebuild/sandcastle/workflow/integrations";
 
 const git = (cwd, ...args) =>
   execFileSync("git", args, {
@@ -42,6 +43,7 @@ export async function runEditorTask({
   agents,
   prompts,
   validate,
+  validationWorktree,
   storage,
   signal,
 }) {
@@ -91,8 +93,29 @@ export async function runEditorTask({
         return currentCandidate();
       },
       currentCandidate,
-      validate: async ({ candidate }) =>
-        validate({ worktree: sandbox.worktreePath, candidate, signal }),
+      validate: async ({ candidate }) => {
+        const recoveryFile = join(directory, "validation-recovery.json");
+        if (
+          validationWorktree &&
+          existsSync(recoveryFile) &&
+          read(recoveryFile).phase !== "restored"
+        )
+          throw new Error(
+            "Prepared worktree recovery is unresolved; preserve its recorded changes before another validation.",
+          );
+        return validationWorktree
+          ? withPreparedWorktree(
+              {
+                source: validationWorktree.source,
+                prepared: validationWorktree.path,
+                candidate,
+                command: validationWorktree.command,
+                saveRecovery: async (record) => saveJson(recoveryFile, record),
+              },
+              (worktree) => validate({ worktree, candidate, signal }),
+            )
+          : validate({ worktree: sandbox.worktreePath, candidate, signal });
+      },
       review: async ({ candidate, validation }) => {
         const result = await sandbox.run({
           agent: agents.reviewer,
