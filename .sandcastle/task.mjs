@@ -4,6 +4,7 @@ import { join, sep } from "node:path";
 import { runWorkflow } from "@rebuild/sandcastle/workflow";
 import { withPreparedWorktree } from "@rebuild/sandcastle/workflow/integrations";
 import { withWorkflowRuntime } from "@rebuild/sandcastle/workflow/runtime";
+import { createWorkflowMeasurements } from "@rebuild/sandcastle/workflow/measurements";
 
 const git = (cwd, ...args) =>
   execFileSync("git", args, {
@@ -51,6 +52,26 @@ async function runTask(
   checkpoint,
 ) {
   const directory = runtime.directory;
+  const measurements = createWorkflowMeasurements({
+    identity: {
+      project: projectId,
+      run: runtime.runId,
+      task: task.id,
+      environment: runtime.compatibility,
+    },
+    previous: await runtime.read("measurements"),
+    save: (report) => runtime.save("measurements", report),
+  });
+  const measured = (stage, context, action) =>
+    measurements.measure(
+      {
+        stage,
+        candidate: context.candidate,
+        attempt: context.attempt?.implementation,
+        retries: context.attempt ? context.attempt.transport - 1 : undefined,
+      },
+      action,
+    );
   const handoffFile = join(directory, "records/handoff.json");
   const currentCandidate = async () => {
     runtime.assertActive();
@@ -76,84 +97,138 @@ async function runTask(
     signal,
     operations: {
       selectTask: async () => task,
-      implement: async (context) => {
-        await sandbox.run({
-          agent: agents.implementer,
-          prompt: `${prompts.implement}\n\n${JSON.stringify({ task: context.task, branch: sandbox.branch })}`,
-          maxIterations: 1,
-          signal,
-          logging: { type: "file", path: join(directory, "implement.log") },
-        });
-        return currentCandidate();
-      },
+      implement: async (context) =>
+        measured("implement", context, async (observation) => {
+          const result = await sandbox.run({
+            agent: agents.implementer,
+            prompt: `${prompts.implement}\n\n${JSON.stringify({ task: context.task, branch: sandbox.branch })}`,
+            maxIterations: 1,
+            signal,
+            logging: { type: "file", path: join(directory, "implement.log") },
+          });
+          const usage = result.iterations.at(-1)?.usage;
+          if (usage) observation.usage({ ...usage, scope: "last-message" });
+          return currentCandidate();
+        }),
       currentCandidate,
-      validate: async ({ candidate }) => {
-        const recovery = await runtime.read("validation-recovery");
-        if (prepareValidation && recovery && recovery.phase !== "restored")
-          throw new Error(
-            "Prepared worktree recovery is unresolved; preserve its recorded changes before another validation.",
-          );
-        const validationWorktree = prepareValidation
-          ? await runtime.resource("native-validation", {
-              identity: runtime.compatibility,
-              create: async (directory) => {
-                const prepared = await prepareValidation({
-                  directory,
-                  runtime,
-                });
-                if (
-                  !realpathSync(prepared.path).startsWith(
-                    realpathSync(directory) + sep,
-                  )
-                )
-                  throw new Error(
-                    "Prepared validation must stay inside this run's resource directory.",
-                  );
-                return prepared;
-              },
-            })
-          : undefined;
-        return validationWorktree
-          ? withPreparedWorktree(
+      validate: async (context) =>
+        measured("validate", context, async (observation) => {
+          const { candidate } = context;
+          const measureCheck = (check, action) =>
+            measurements.measure(
               {
-                source: validationWorktree.source,
-                prepared: validationWorktree.path,
+                stage: "validate",
+                check,
                 candidate,
-                command: validationWorktree.command,
-                saveRecovery: (record) =>
-                  runtime.save("validation-recovery", record),
+                attempt: context.attempt?.implementation,
+                retries: context.attempt
+                  ? context.attempt.transport - 1
+                  : undefined,
               },
-              (worktree) => validate({ worktree, candidate, signal }),
+              async (checkObservation) => {
+                const value = await action();
+                if (value?.passed === false) checkObservation.rejected();
+                return value;
+              },
+            );
+          const recovery = await runtime.read("validation-recovery");
+          if (prepareValidation && recovery && recovery.phase !== "restored")
+            throw new Error(
+              "Prepared worktree recovery is unresolved; preserve its recorded changes before another validation.",
+            );
+          const validationWorktree = prepareValidation
+            ? await runtime.resource("native-validation", {
+                identity: runtime.compatibility,
+                create: async (directory) => {
+                  const prepared = await prepareValidation({
+                    directory,
+                    runtime,
+                  });
+                  if (
+                    !realpathSync(prepared.path).startsWith(
+                      realpathSync(directory) + sep,
+                    )
+                  )
+                    throw new Error(
+                      "Prepared validation must stay inside this run's resource directory.",
+                    );
+                  return prepared;
+                },
+              })
+            : undefined;
+          const result = await (validationWorktree
+            ? withPreparedWorktree(
+                {
+                  source: validationWorktree.source,
+                  prepared: validationWorktree.path,
+                  candidate,
+                  command: validationWorktree.command,
+                  saveRecovery: (record) =>
+                    runtime.save("validation-recovery", record),
+                },
+                (worktree) =>
+                  validate({ worktree, candidate, signal, measureCheck }),
+              )
+            : validate({
+                worktree: sandbox.worktreePath,
+                candidate,
+                signal,
+                measureCheck,
+              }));
+          if (result.passed === false) observation.rejected();
+          const timings = measurements
+            .report()
+            .records.filter(
+              (record) =>
+                record.stage === "validate" &&
+                record.check &&
+                record.candidate === candidate,
             )
-          : validate({ worktree: sandbox.worktreePath, candidate, signal });
-      },
-      review: async ({ candidate, validation }) => {
-        const result = await sandbox.run({
-          agent: agents.reviewer,
-          prompt: `${prompts.review}\n\nReturn only a JSON object with candidate, approved, and criteria [{id,satisfied,evidence}].\n${JSON.stringify({ task, candidate, validation })}`,
-          maxIterations: 1,
-          signal,
-          logging: { type: "file", path: join(directory, "review.log") },
-        });
-        return JSON.parse(result.stdout);
-      },
-      deliver: async ({ candidate, validation, review }) => {
-        if ((await currentCandidate()) !== candidate)
-          throw new Error("Candidate changed before local handoff.");
-        if ((await runtime.read("handoff")) !== undefined)
-          throw new Error(
-            "A local handoff already exists; reconcile it before another delivery.",
-          );
-        await runtime.save("handoff", {
-          project: project.id,
-          task,
-          branch: sandbox.branch,
-          candidate,
-          validation,
-          review,
-        });
-        return { candidate, reference: handoffFile };
-      },
+            .map(({ id, check, attempt, retries, durationMs, outcome }) => ({
+              id,
+              check,
+              attempt,
+              retries,
+              durationMs,
+              outcome,
+            }));
+          return { ...result, timings };
+        }),
+      review: async (context) =>
+        measured("review", context, async (observation) => {
+          const { candidate, validation } = context;
+          const result = await sandbox.run({
+            agent: agents.reviewer,
+            prompt: `${prompts.review}\n\nReturn only a JSON object with candidate, approved, and criteria [{id,satisfied,evidence}].\n${JSON.stringify({ task, candidate, validation })}`,
+            maxIterations: 1,
+            signal,
+            logging: { type: "file", path: join(directory, "review.log") },
+          });
+          const usage = result.iterations.at(-1)?.usage;
+          if (usage) observation.usage({ ...usage, scope: "last-message" });
+          const review = JSON.parse(result.stdout);
+          if (review.approved === false) observation.rejected();
+          return review;
+        }),
+      deliver: async (context) =>
+        measured("deliver", context, async () => {
+          const { candidate, validation, review } = context;
+          if ((await currentCandidate()) !== candidate)
+            throw new Error("Candidate changed before local handoff.");
+          if ((await runtime.read("handoff")) !== undefined)
+            throw new Error(
+              "A local handoff already exists; reconcile it before another delivery.",
+            );
+          await runtime.save("handoff", {
+            project: project.id,
+            task,
+            branch: sandbox.branch,
+            candidate,
+            validation,
+            review,
+          });
+          return { candidate, reference: handoffFile };
+        }),
       save: (state) => runtime.save("checkpoint", state),
     },
   });

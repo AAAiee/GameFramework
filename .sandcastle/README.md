@@ -60,6 +60,8 @@ persistent workflow recovery belongs in a separately tested pipeline layer.
 The single-task, Git/GitHub and package/isolation increments are implemented locally. See
 [the adapter and evidence](SINGLE-TASK.md), [Git/GitHub evidence](GIT-GITHUB.md)
 and [the current adapter and package pin](PACKAGE-ISOLATION.md).
+Stage/check accounting and the preserved measured fixture baseline are described
+in [measurements](MEASUREMENTS.md).
 No GitHub ticket has been closed and
 the implementation has not been promoted into the original checkouts.
 

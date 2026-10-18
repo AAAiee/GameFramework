@@ -5,3 +5,4 @@ logs/
 worktrees/
 !baseline.json
 !package-provenance.json
+!measurement-baseline.json
