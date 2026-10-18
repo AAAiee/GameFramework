@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { runWorkflow } from "@rebuild/sandcastle/workflow";
+import {
+  runWorkflow,
+  WorkflowOperationError,
+} from "@rebuild/sandcastle/workflow";
 import { createCommandRunner } from "@rebuild/sandcastle/workflow/integrations";
 import { withWorkflowRuntime } from "@rebuild/sandcastle/workflow/runtime";
 
@@ -232,6 +235,112 @@ await assert.rejects(
   { code: "invalid-checkpoint" },
 );
 assert.equal(calls, 0);
+// The distributable itself owns these counters, rather than the consumer's legacy budget above.
+for (const boundary of ["validate", "review", "deliver"]) {
+  const checkpointFile = join(process.cwd(), `recovery-${boundary}.json`);
+  const events = [];
+  let receipt;
+  let online = false;
+  const project = { id: `independent-recovery-${boundary}`, config: {} };
+  const operations = {
+    selectTask: async () => ({
+      id: "portable-task",
+      criteria: [{ id: "C1", description: "Works" }],
+    }),
+    implement: async () => {
+      events.push("implement");
+      return "portable-candidate";
+    },
+    currentCandidate: async () => "portable-candidate",
+    validate: async () => {
+      events.push("validate");
+      if (boundary === "validate")
+        return {
+          candidate: "portable-candidate",
+          passed: false,
+          evidence: ["Assertion failed"],
+        };
+      return {
+        candidate: "portable-candidate",
+        passed: true,
+        evidence: ["assertion.log"],
+      };
+    },
+    review: async () => {
+      events.push("review");
+      if (boundary === "review" && !online)
+        throw new WorkflowOperationError("transport", "Disconnected");
+      return {
+        candidate: "portable-candidate",
+        approved: true,
+        criteria: [
+          { id: "C1", satisfied: true, evidence: "Inspected behavior" },
+        ],
+      };
+    },
+    deliver: async () => {
+      events.push("deliver");
+      receipt = {
+        candidate: "portable-candidate",
+        reference: "portable-receipt",
+      };
+      if (boundary === "deliver")
+        throw new WorkflowOperationError("transport", "Lost receipt response");
+      return receipt;
+    },
+    save: async (state) => writeFileSync(checkpointFile, JSON.stringify(state)),
+  };
+  const load = () => JSON.parse(readFileSync(checkpointFile));
+  if (boundary === "validate") {
+    await assert.rejects(runWorkflow({ project, operations, recovery: {} }), {
+      code: "exhausted",
+    });
+    await assert.rejects(
+      runWorkflow({ project, operations, checkpoint: load() }),
+      { code: "exhausted" },
+    );
+    assert.equal(events.filter((event) => event === "implement").length, 3);
+    assert.equal(events.includes("deliver"), false);
+  } else if (boundary === "review") {
+    await assert.rejects(
+      runWorkflow({
+        project,
+        operations,
+        recovery: {
+          wait: async () => {
+            throw Error("restart boundary");
+          },
+        },
+      }),
+      /restart boundary/,
+    );
+    online = true;
+    const resumed = await runWorkflow({
+      project,
+      operations,
+      checkpoint: load(),
+      recovery: { wait: async () => {} },
+    });
+    assert.equal(resumed.phase, "ready");
+    assert.equal(resumed.recovery.operations["review/1"].attempts, 2);
+    assert.equal(events.filter((event) => event === "implement").length, 1);
+    assert.equal(events.filter((event) => event === "validate").length, 1);
+  } else {
+    await assert.rejects(runWorkflow({ project, operations, recovery: {} }), {
+      code: "uncertain",
+    });
+    const resumed = await runWorkflow({
+      project,
+      operations,
+      checkpoint: load(),
+      recovery: {
+        reconcile: async () => ({ status: "completed", value: receipt }),
+      },
+    });
+    assert.equal(resumed.phase, "ready");
+    assert.equal(events.filter((event) => event === "deliver").length, 1);
+  }
+}
 console.log(
   "PASS: independent packaged A then B; success, failed validation, durable review resume, preserved consumer budget and foreign-checkpoint refusal",
 );

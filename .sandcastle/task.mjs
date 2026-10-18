@@ -46,7 +46,16 @@ export async function runEditorTask(options) {
 }
 
 async function runTask(
-  { projectId, task, agents, prompts, validate, prepareValidation, signal },
+  {
+    projectId,
+    task,
+    agents,
+    prompts,
+    validate,
+    prepareValidation,
+    signal,
+    recovery: recoveryOptions,
+  },
   runtime,
   sandbox,
   checkpoint,
@@ -91,17 +100,42 @@ async function runTask(
     id: projectId,
     config: { branch: sandbox.branch, worktree: sandbox.worktreePath },
   };
+  const recovery = recoveryOptions ?? (checkpoint?.recovery ? {} : undefined);
   return runWorkflow({
     project,
     checkpoint,
     signal,
+    recovery: recovery && {
+      ...recovery,
+      reconcile: async (context) => {
+        if (context.phase !== "deliver")
+          return recovery.reconcile?.(context) ?? { status: "uncertain" };
+        const saved = await runtime.read("handoff");
+        if (saved === undefined) return { status: "not-started" };
+        if (
+          saved.project === project.id &&
+          saved.branch === sandbox.branch &&
+          saved.candidate === context.candidate &&
+          (await currentCandidate()) === context.candidate &&
+          JSON.stringify(saved.task) === JSON.stringify(context.task) &&
+          JSON.stringify(saved.validation) ===
+            JSON.stringify(context.validation) &&
+          JSON.stringify(saved.review) === JSON.stringify(context.review)
+        )
+          return {
+            status: "completed",
+            value: { candidate: saved.candidate, reference: handoffFile },
+          };
+        return { status: "uncertain" };
+      },
+    },
     operations: {
       selectTask: async () => task,
       implement: async (context) =>
         measured("implement", context, async (observation) => {
           const result = await sandbox.run({
             agent: agents.implementer,
-            prompt: `${prompts.implement}\n\n${JSON.stringify({ task: context.task, branch: sandbox.branch })}`,
+            prompt: `${prompts.implement}\n\n${JSON.stringify({ task: context.task, branch: sandbox.branch, repair: context.repair })}`,
             maxIterations: 1,
             signal,
             logging: { type: "file", path: join(directory, "implement.log") },
