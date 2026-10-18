@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createSandbox } from "@ai-hero/sandcastle";
+import { WorkflowOperationError } from "@rebuild/sandcastle/workflow";
 import { createCommandRunner } from "@rebuild/sandcastle/workflow/integrations";
 import { fixture, git, success } from "./test-fixture.mjs";
 import { runEditorTask } from "./task.mjs";
@@ -198,6 +199,63 @@ test("Editor adapter uses the packaged workflow with the original SDK and hands 
   assert.equal(readFileSync(join(f.root, "source.txt"), "utf8"), "original\n");
   await runEditorTask(options);
   assert.deepEqual(counts(), { invocations: 2, validations: 1 });
+});
+
+test("Editor enables durable transport recovery explicitly and reports actual code/transport attempts", async (t) => {
+  const { options, counts } = await editorFixture(t);
+  const validate = options.validate;
+  let interrupted = false;
+  options.recovery = { wait: async () => {} };
+  options.validate = async (context) => {
+    if (!interrupted) {
+      interrupted = true;
+      throw new WorkflowOperationError(
+        "transport",
+        "Fixture host service disconnected before validation",
+      );
+    }
+    return validate(context);
+  };
+  const result = await runEditorTask(options);
+  assert.equal(result.phase, "ready");
+  assert.deepEqual(counts(), { invocations: 2, validations: 1 });
+  assert.equal(result.recovery.implementationAttempts, 1);
+  assert.equal(result.recovery.operations["validate/1"].attempts, 2);
+  const report = read(join(options.storage, "measurements.json"));
+  assert.deepEqual(
+    report.records
+      .filter((record) => record.stage === "validate")
+      .map((record) => [record.attempt, record.retries]),
+    [
+      [1, 0],
+      [1, 1],
+    ],
+  );
+});
+
+test("Editor reconciles a durable local handoff after interrupted receipt persistence without another delivery", async (t) => {
+  const { options, counts } = await editorFixture(t);
+  options.recovery = {};
+  const ready = await runEditorTask(options);
+  const handoffBefore = readFileSync(ready.delivery.reference, "utf8");
+  const checkpointFile = join(options.storage, "checkpoint.json");
+  const saved = JSON.parse(readFileSync(checkpointFile, "utf8"));
+  saved.value.phase = "deliver";
+  saved.value.inFlight = "deliver";
+  delete saved.value.delivery;
+  saved.value.recovery.operations["deliver/1"].status = "running";
+  delete saved.value.recovery.operations["deliver/1"].result;
+  writeFileSync(checkpointFile, JSON.stringify(saved));
+  delete options.recovery;
+  const resumed = await runEditorTask(options);
+  assert.equal(resumed.phase, "ready");
+  assert.deepEqual(counts(), { invocations: 2, validations: 1 });
+  assert.equal(readFileSync(resumed.delivery.reference, "utf8"), handoffBefore);
+  const report = read(join(options.storage, "measurements.json"));
+  assert.equal(
+    report.records.filter((record) => record.stage === "deliver").length,
+    1,
+  );
 });
 
 test("Editor persists stage and individual host-check measurements and preserves them on resume", async (t) => {
