@@ -21,6 +21,12 @@ sandbox using its returned run-scoped branch. Optional `signal` supports cancell
 The adapter acquires the repository writer lock before calling this factory and
 owns sandbox close through the runtime resource lifecycle.
 
+The current adapter also requires project-owned `context` (complete scope,
+immutable base, entrypoints, commands and references). See
+[CONTEXT-PACKETS.md](CONTEXT-PACKETS.md) for stage packets, sandbox-readable evidence
+copies and context freshness. Keep acceptance criteria in the task rather than
+duplicating them in scope or the static prompts.
+
 The optional `prepareValidation({ directory, runtime })` factory returns
 `{ source, path, command }`. It creates or reopens a prepared validation worktree
 **inside its supplied resource directory**; use `runtime.key` for any Git branch
