@@ -10,6 +10,10 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+# Standalone focused invocations also need private build workers/PDB writes.
+# The owning process boundary terminates these descendants before release.
+$env:MSBUILDDISABLENODEREUSE = '1'
+$env:_MSPDBSRV_ENDPOINT_ = "unit-$([Guid]::NewGuid().ToString('N'))"
 $repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 if (-not [IO.Path]::IsPathRooted($BinaryRoot) -or
     -not [IO.Path]::IsPathRooted($MSBuild)) {
