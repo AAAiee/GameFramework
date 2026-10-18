@@ -1,5 +1,10 @@
 # Package and isolation increment: #35
 
+This page records the #35 package/isolation verification. The current package
+update and #36 measurement limits are recorded in [MEASUREMENTS.md](MEASUREMENTS.md)
+and [package-provenance.json](package-provenance.json); archive hashes below are
+the historical #35 artifact.
+
 The fork adds `@ai-hero/sandcastle/workflow/runtime`, and Editor consumes a fixed
 archive through `@rebuild/sandcastle`. The original registry SDK stays independently
 pinned to exact `0.12.0`. [package-provenance.json](package-provenance.json) records
