@@ -31,6 +31,8 @@ async function editorFixture(
     preparedValidation = false,
     measuredCheck = false,
     reportedUsage = false,
+    malformedReview = false,
+    malformedCorrection = false,
   } = {},
 ) {
   let invocations = 0;
@@ -67,8 +69,15 @@ async function editorFixture(
         stderr: "Unfamiliar reviewer interruption",
         exitCode: 9,
       };
+    if (malformedReview && invocations === 2)
+      return success(
+        "Independent inspection complete, but this review has malformed JSON: {broken",
+      );
+    if (malformedCorrection && invocations >= 3)
+      return success("Still malformed after the single correction");
     return success(
       JSON.stringify({
+        task: task.id,
         candidate: git(worktree, "rev-parse", "HEAD"),
         approved: true,
         criteria: [
@@ -199,6 +208,37 @@ test("Editor adapter uses the packaged workflow with the original SDK and hands 
   assert.equal(readFileSync(join(f.root, "source.txt"), "utf8"), "original\n");
   await runEditorTask(options);
   assert.deepEqual(counts(), { invocations: 2, validations: 1 });
+});
+
+test("Editor requests one independent format correction while retaining the candidate and host validation", async (t) => {
+  const { options, counts } = await editorFixture(t, { malformedReview: true });
+  options.reviewOutput = true;
+  const result = await runEditorTask(options);
+  assert.equal(result.phase, "ready");
+  assert.deepEqual(counts(), { invocations: 3, validations: 1 });
+  assert.equal(result.review.task, task.id);
+  assert.equal(result.reviewCorrection.consumed, true);
+  const report = read(join(options.storage, "measurements.json"));
+  assert.equal(
+    report.records.filter((record) => record.stage === "review-correction")
+      .length,
+    1,
+  );
+  await runEditorTask(options);
+  assert.deepEqual(counts(), { invocations: 3, validations: 1 });
+});
+
+test("Editor preserves failed correction consumption across actual runtime checkpoint reload", async (t) => {
+  const { options, counts } = await editorFixture(t, {
+    malformedReview: true,
+    malformedCorrection: true,
+  });
+  options.reviewOutput = true;
+  await assert.rejects(runEditorTask(options), { code: "format" });
+  delete options.reviewOutput;
+  await assert.rejects(runEditorTask(options), { code: "format" });
+  assert.deepEqual(counts(), { invocations: 3, validations: 1 });
+  assert.equal(existsSync(join(options.storage, "handoff.json")), false);
 });
 
 test("Editor enables durable transport recovery explicitly and reports actual code/transport attempts", async (t) => {
