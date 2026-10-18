@@ -6,10 +6,13 @@ import {
   extractWorkflowReview,
   runWorkflow,
   WorkflowOperationError,
+  createWorkflowPacket,
+  workflowPacketPolicy,
 } from "@rebuild/sandcastle/workflow";
 import { withPreparedWorktree } from "@rebuild/sandcastle/workflow/integrations";
 import { withWorkflowRuntime } from "@rebuild/sandcastle/workflow/runtime";
 import { createWorkflowMeasurements } from "@rebuild/sandcastle/workflow/measurements";
+import { createEditorContext } from "./context.mjs";
 
 const git = (cwd, ...args) =>
   execFileSync("git", args, {
@@ -62,12 +65,20 @@ async function runTask(
     recovery: recoveryOptions,
     evidence,
     reviewOutput,
+    context: packetInputs,
   },
   runtime,
   sandbox,
   checkpoint,
 ) {
   const directory = runtime.directory;
+  const packets = createEditorContext({
+    sandbox,
+    runtime,
+    task,
+    context: packetInputs,
+    git,
+  });
   const measurements = createWorkflowMeasurements({
     identity: {
       project: projectId,
@@ -131,21 +142,66 @@ async function runTask(
       context,
       async (observation) => {
         const { candidate, validation } = context;
-        const correctionPrompt = correction
-          ? `\n\nThis is the one format-correction request for the independent review. Preserve your actual findings and approval/rejection decision. Reformat only; do not modify code or run implementation repair.\n${JSON.stringify({ previousOutput: context.output, problem: context.problem })}`
-          : "";
+        const invocation = packets.invocation(
+          correction ? "review-correction" : "review",
+          context,
+        );
+        const packet = correction
+          ? createWorkflowPacket({
+              stage: "correction",
+              task: context.task,
+              candidate,
+              problem: context.problem,
+              output: invocation.write(
+                "previous-output.log",
+                typeof context.output === "string"
+                  ? context.output
+                  : JSON.stringify(context.output),
+              ),
+            })
+          : createWorkflowPacket({
+              stage: "review",
+              task: context.task,
+              base: packetInputs.base,
+              candidate,
+              changedPaths: git(
+                sandbox.worktreePath,
+                "diff",
+                "--name-only",
+                packetInputs.base,
+                candidate,
+                "--",
+              )
+                .split("\n")
+                .filter(Boolean),
+              diffCommand: `git diff ${packetInputs.base} ${candidate} --`,
+              validation: {
+                ...validation,
+                evidence: validation.evidence.map(packets.evidence),
+              },
+              references: [
+                packets.requirements,
+                ...packets.current().references,
+              ],
+            });
+        invocation.write("packet.json", packet);
         const result = await sandbox.run({
           agent: agents.reviewer,
-          prompt: `${prompts.review}\n\n${strictReview ? "Return a final <review> tag on its own line containing strict JSON with task (the exact task.id), candidate, approved, and criteria [{id,satisfied,evidence}]. Close with </review> and no trailing text." : "Return only a JSON object with candidate, approved, and criteria [{id,satisfied,evidence}]."}\n${JSON.stringify({ task: context.task, candidate, validation })}${correctionPrompt}`,
+          prompt: correction
+            ? packet
+            : `${prompts.review}\n\n${strictReview ? "Return a final <review> tag on its own line containing strict JSON with task (the exact task.id), candidate, approved, and criteria [{id,satisfied,evidence}]. Close with </review> and no trailing text." : "Return only a JSON object with candidate, approved, and criteria [{id,satisfied,evidence}]."}\n${packet}`,
           maxIterations: 1,
           signal,
           logging: {
             type: "file",
-            path: join(
-              directory,
-              correction ? "review-correction.log" : "review.log",
-            ),
+            path: invocation.log,
           },
+        });
+        const output = invocation.write("output.log", result.stdout);
+        await runtime.save("review-evidence", {
+          candidate,
+          generation: context.evidenceGeneration ?? 0,
+          output,
         });
         const usage = result.iterations.at(-1)?.usage;
         if (usage) observation.usage({ ...usage, scope: "last-message" });
@@ -179,7 +235,14 @@ async function runTask(
         if (typeof policy !== "string" || !policy.trim())
           throw new Error("Current independent review policy is unavailable.");
         return createHash("sha256")
-          .update(JSON.stringify({ policy, prompt: prompts.review }))
+          .update(
+            JSON.stringify({
+              policy,
+              prompt: prompts.review,
+              packetPolicy: workflowPacketPolicy,
+              context: packets.current(),
+            }),
+          )
           .digest("hex");
       },
     },
@@ -217,12 +280,38 @@ async function runTask(
       selectTask: async () => task,
       implement: async (context) =>
         measured("implement", context, async (observation) => {
+          const invocation = packets.invocation(
+            context.repair ? "repair" : "implement",
+            context,
+          );
+          const previousReview =
+            context.repair?.phase === "review"
+              ? await runtime.read("review-evidence")
+              : undefined;
+          const packet = context.repair
+            ? createWorkflowPacket({
+                stage: "repair",
+                task: context.task,
+                requirements: packets.requirements,
+                repair: {
+                  ...context.repair,
+                  failures: context.repair.failures?.map((failure) => ({
+                    ...failure,
+                    evidence: failure.evidence.map(packets.evidence),
+                  })),
+                },
+                references: previousReview
+                  ? [packets.evidence(previousReview.output)]
+                  : [],
+              })
+            : packets.initial;
+          invocation.write("packet.json", packet);
           const result = await sandbox.run({
             agent: agents.implementer,
-            prompt: `${prompts.implement}\n\n${JSON.stringify({ task: context.task, branch: sandbox.branch, repair: context.repair })}`,
+            prompt: `${prompts.implement}\n\n${packet}`,
             maxIterations: 1,
             signal,
-            logging: { type: "file", path: join(directory, "implement.log") },
+            logging: { type: "file", path: invocation.log },
           });
           const usage = result.iterations.at(-1)?.usage;
           if (usage) observation.usage({ ...usage, scope: "last-message" });
@@ -314,7 +403,19 @@ async function runTask(
               durationMs,
               outcome,
             }));
-          return { ...result, timings };
+          return {
+            ...result,
+            evidence: result.evidence.map(packets.evidence),
+            ...(result.failures
+              ? {
+                  failures: result.failures.map((failure) => ({
+                    ...failure,
+                    evidence: failure.evidence.map(packets.evidence),
+                  })),
+                }
+              : {}),
+            timings,
+          };
         }),
       review: (context) => review(context, false),
       deliver: async (context) =>
@@ -334,6 +435,12 @@ async function runTask(
             candidate,
             validation,
             review,
+            stageContext: {
+              requirements: packets.retained(packets.requirements),
+              review: packets.retained(
+                (await runtime.read("review-evidence")).output,
+              ),
+            },
           });
           return { candidate, reference: handoffFile(context) };
         }),
