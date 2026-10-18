@@ -1,0 +1,7 @@
+{
+  "package": "@ai-hero/sandcastle",
+  "version": "0.12.0",
+  "sourceCommit": "e99f832f26dc9d245c019a9ddd19fa5dee792427",
+  "resolved": "https://registry.npmjs.org/@ai-hero/sandcastle/-/sandcastle-0.12.0.tgz",
+  "integrity": "sha512-kdQ414rM8t1QiWeqZ3Klz4KSd0PqQG4bRVuqGpRDUomWhojSZkEAc1tbcEcThVmBEaHkCt8LmYR49vqEPNIoYQ=="
+}

@@ -3,3 +3,4 @@
 codex-home/
 logs/
 worktrees/
+!baseline.json
