@@ -12,6 +12,10 @@ import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { WorkflowOperationError } from "@rebuild/sandcastle/workflow";
 import { createCommandRunner } from "@rebuild/sandcastle/workflow/integrations";
 import { createEditorEvidence } from "./evidence.mjs";
+import {
+  createOwnedProcessRunner,
+  OwnedProcessError,
+} from "@rebuild/sandcastle/workflow/process";
 
 const execute = promisify(execFile);
 const stable = (value) =>
@@ -410,6 +414,14 @@ export function createEditorNativeValidation({
   reviewPolicy,
   reportsDirectory,
 }) {
+  let processOwner;
+  let observeProcess;
+  const processes = () =>
+    (processOwner ??= createOwnedProcessRunner({
+      directory: join(reportsDirectory, "processes"),
+      windowsPowerShell: powershell,
+      save: async (record) => observeProcess?.(record),
+    }));
   const script = new URL("../Scripts/Validate-Windows.ps1", import.meta.url);
   const inspect = new URL(
     "../Scripts/Inspect-NativeEnvironment.ps1",
@@ -433,11 +445,11 @@ export function createEditorNativeValidation({
       writeFileSync(planPath, JSON.stringify(plans[phase], null, 2), {
         flag: "wx",
       });
-      let exit = 0;
+      let exit;
       try {
-        const { stdout, stderr } = await execute(
-          powershell,
-          [
+        const result = await processes().run({
+          executable: powershell,
+          args: [
             "-NoProfile",
             "-File",
             fileURLToPath(script),
@@ -454,30 +466,41 @@ export function createEditorNativeValidation({
             "-ReportPath",
             reportPath,
           ],
-          {
-            windowsHide: true,
-            signal,
-            maxBuffer: 8 * 1024 * 1024,
-            timeout: 3 * 60 * 60 * 1000,
-          },
-        );
-        writeFileSync(join(directory, "driver.log"), stdout + stderr);
-      } catch (cause) {
-        exit = cause.code;
+          cwd: worktree,
+          signal,
+          timeoutMs: 3 * 60 * 60 * 1000,
+        });
+        exit = result.exitCode;
         writeFileSync(
           join(directory, "driver.log"),
-          `${cause.stdout ?? ""}\n${cause.stderr ?? ""}\n${cause.message}`,
+          result.stdout + result.stderr,
         );
-        if (
-          signal?.aborted ||
-          typeof exit !== "number" ||
-          !existsSync(reportPath)
-        )
-          throw new Error(
-            `Native process outcome is unknown; preserve ${directory}`,
-            { cause },
-          );
+        writeFileSync(join(directory, "process-receipt.txt"), result.record);
+      } catch (cause) {
+        writeFileSync(
+          join(directory, "driver.log"),
+          `${cause.message}\nOwned process receipt: ${cause.record ?? "unavailable"}`,
+        );
+        if (cause instanceof OwnedProcessError && cause.quiescent) {
+          if (cause.kind === "cancelled")
+            throw new WorkflowOperationError(
+              "transport",
+              `Native checks were cancelled after owned processes stopped; preserve ${directory}`,
+              cause,
+            );
+          if (["timeout", "configuration"].includes(cause.kind))
+            throw prerequisite(
+              `Native process ${cause.kind}; preserve ${directory}`,
+              cause,
+            );
+        }
+        throw new Error(
+          `Native process ownership is unknown; preserve ${directory}`,
+          { cause },
+        );
       }
+      if (!existsSync(reportPath))
+        throw new Error(`Native report is missing; preserve ${directory}`);
       const report = JSON.parse(readFileSync(reportPath, "utf8"));
       if (exit !== 0 && report.status === "passed")
         throw new Error(
@@ -499,13 +522,22 @@ export function createEditorNativeValidation({
       });
     };
   return {
-    prepareValidation: ({ directory, candidate }) =>
-      prepareNativeWorktree({
+    prepareValidation: async ({ directory, candidate, runtime }) => {
+      observeProcess =
+        runtime && ((record) => runtime.save("native-process", record));
+      const prepared = await prepareNativeWorktree({
         directory,
         source,
         candidate,
         localDependencies,
-      }),
+      });
+      const owner = processes();
+      return {
+        ...prepared,
+        quiescent: () => owner.isQuiescent(),
+        close: () => owner.assertQuiescent(),
+      };
+    },
     diagnose: run("diagnose"),
     validate: run("validate"),
     evidence: createEditorEvidence({
