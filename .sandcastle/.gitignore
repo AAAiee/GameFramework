@@ -4,3 +4,4 @@ codex-home/
 logs/
 worktrees/
 !baseline.json
+!package-provenance.json

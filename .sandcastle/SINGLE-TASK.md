@@ -1,5 +1,9 @@
 # Single-task increment: #33
 
+This records the original #33 contract and frozen branch. The subsequent
+[package/isolation increment](PACKAGE-ISOLATION.md) replaces caller-chosen storage
+with a locked runtime scope and moves sandbox opening/closing inside that scope.
+
 The customized fork adds one opt-in, Promise-based workflow entrypoint. It owns
 stage ordering, candidate/acceptance/review gates, and explicit checkpoint
 progress. It contains no Editor repository names, issue numbers, native paths,

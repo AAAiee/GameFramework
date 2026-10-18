@@ -1,18 +1,9 @@
 import { execFileSync } from "node:child_process";
-import { randomUUID } from "node:crypto";
-import {
-  closeSync,
-  existsSync,
-  fsyncSync,
-  mkdirSync,
-  openSync,
-  readFileSync,
-  renameSync,
-  writeFileSync,
-} from "node:fs";
-import { join, resolve } from "node:path";
+import { realpathSync } from "node:fs";
+import { join, sep } from "node:path";
 import { runWorkflow } from "@rebuild/sandcastle/workflow";
 import { withPreparedWorktree } from "@rebuild/sandcastle/workflow/integrations";
+import { withWorkflowRuntime } from "@rebuild/sandcastle/workflow/runtime";
 
 const git = (cwd, ...args) =>
   execFileSync("git", args, {
@@ -20,46 +11,49 @@ const git = (cwd, ...args) =>
     encoding: "utf8",
     windowsHide: true,
   }).trim();
-const read = (file) => JSON.parse(readFileSync(file, "utf8"));
-
-// The caller serializes this task's storage and worktree. SDK lifecycle stays with the caller.
-function saveJson(path, value) {
-  const temporary = `${path}.${randomUUID()}.tmp`;
-  const fd = openSync(temporary, "wx");
-  try {
-    writeFileSync(fd, JSON.stringify(value, null, 2) + "\n");
-    fsyncSync(fd);
-  } finally {
-    closeSync(fd);
-  }
-  renameSync(temporary, path);
-}
 
 /** Explicit single-task adapter. No queue discovery, agent defaults or remote delivery. */
-export async function runEditorTask({
-  projectId,
-  task,
+export async function runEditorTask(options) {
+  return withWorkflowRuntime(
+    {
+      ...options.runtime,
+      projectId: options.projectId,
+      signal: options.signal,
+    },
+    async (runtime) => {
+      const checkpoint = await runtime.read("checkpoint");
+      if (checkpoint && checkpoint.project !== options.projectId)
+        throw new Error(
+          "Saved checkpoint belongs to another project; it was preserved.",
+        );
+      if (
+        checkpoint?.task &&
+        JSON.stringify(checkpoint.task) !== JSON.stringify(options.task)
+      )
+        throw new Error(
+          "Saved task requirements changed; preserve its checkpoint and review the new scope.",
+        );
+      const sandbox = await runtime.resource("sdk-sandbox", {
+        identity: runtime.compatibility,
+        create: () =>
+          options.openSandbox({ runtime, branch: `task/${runtime.key}` }),
+        close: (handle) => handle.close(),
+      });
+      return runTask(options, runtime, sandbox, checkpoint);
+    },
+  );
+}
+
+async function runTask(
+  { projectId, task, agents, prompts, validate, prepareValidation, signal },
+  runtime,
   sandbox,
-  agents,
-  prompts,
-  validate,
-  validationWorktree,
-  storage,
-  signal,
-}) {
-  const directory = resolve(storage);
-  mkdirSync(directory, { recursive: true });
-  const stateFile = join(directory, "checkpoint.json");
-  const handoffFile = join(directory, "handoff.json");
-  const checkpoint = existsSync(stateFile) ? read(stateFile) : undefined;
-  if (
-    checkpoint?.task &&
-    JSON.stringify(checkpoint.task) !== JSON.stringify(task)
-  )
-    throw new Error(
-      "Saved task requirements changed; preserve its checkpoint and review the new scope.",
-    );
+  checkpoint,
+) {
+  const directory = runtime.directory;
+  const handoffFile = join(directory, "records/handoff.json");
   const currentCandidate = async () => {
+    runtime.assertActive();
     if (
       git(sandbox.worktreePath, "branch", "--show-current") !== sandbox.branch
     )
@@ -94,15 +88,31 @@ export async function runEditorTask({
       },
       currentCandidate,
       validate: async ({ candidate }) => {
-        const recoveryFile = join(directory, "validation-recovery.json");
-        if (
-          validationWorktree &&
-          existsSync(recoveryFile) &&
-          read(recoveryFile).phase !== "restored"
-        )
+        const recovery = await runtime.read("validation-recovery");
+        if (prepareValidation && recovery && recovery.phase !== "restored")
           throw new Error(
             "Prepared worktree recovery is unresolved; preserve its recorded changes before another validation.",
           );
+        const validationWorktree = prepareValidation
+          ? await runtime.resource("native-validation", {
+              identity: runtime.compatibility,
+              create: async (directory) => {
+                const prepared = await prepareValidation({
+                  directory,
+                  runtime,
+                });
+                if (
+                  !realpathSync(prepared.path).startsWith(
+                    realpathSync(directory) + sep,
+                  )
+                )
+                  throw new Error(
+                    "Prepared validation must stay inside this run's resource directory.",
+                  );
+                return prepared;
+              },
+            })
+          : undefined;
         return validationWorktree
           ? withPreparedWorktree(
               {
@@ -110,7 +120,8 @@ export async function runEditorTask({
                 prepared: validationWorktree.path,
                 candidate,
                 command: validationWorktree.command,
-                saveRecovery: async (record) => saveJson(recoveryFile, record),
+                saveRecovery: (record) =>
+                  runtime.save("validation-recovery", record),
               },
               (worktree) => validate({ worktree, candidate, signal }),
             )
@@ -129,11 +140,11 @@ export async function runEditorTask({
       deliver: async ({ candidate, validation, review }) => {
         if ((await currentCandidate()) !== candidate)
           throw new Error("Candidate changed before local handoff.");
-        if (existsSync(handoffFile))
+        if ((await runtime.read("handoff")) !== undefined)
           throw new Error(
             "A local handoff already exists; reconcile it before another delivery.",
           );
-        saveJson(handoffFile, {
+        await runtime.save("handoff", {
           project: project.id,
           task,
           branch: sandbox.branch,
@@ -143,7 +154,7 @@ export async function runEditorTask({
         });
         return { candidate, reference: handoffFile };
       },
-      save: async (state) => saveJson(stateFile, state),
+      save: (state) => runtime.save("checkpoint", state),
     },
   });
 }

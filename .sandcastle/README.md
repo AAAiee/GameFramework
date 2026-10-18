@@ -10,7 +10,7 @@ The original published source revision is
 [baseline.json](baseline.json). The separate fork worktree
 `../sandcastleCustomized-pipeline-rebuild` starts at that exact upstream commit.
 The frozen source remains on `rebuild/original-0.12.0`; current changes are on
-`rebuild/34-git-github`. The original Editor baseline is commit `43ada0e`.
+`rebuild/35-package-isolation`. The original Editor baseline is commit `43ada0e`.
 
 ## Run this increment
 
@@ -57,8 +57,9 @@ persistent workflow recovery belongs in a separately tested pipeline layer.
 
 ## Rebuild sequence
 
-The single-task and Git/GitHub increments are implemented locally. See
-[the adapter and evidence](SINGLE-TASK.md) and [Git/GitHub evidence](GIT-GITHUB.md).
+The single-task, Git/GitHub and package/isolation increments are implemented locally. See
+[the adapter and evidence](SINGLE-TASK.md), [Git/GitHub evidence](GIT-GITHUB.md)
+and [the current adapter and package pin](PACKAGE-ISOLATION.md).
 No GitHub ticket has been closed and
 the implementation has not been promoted into the original checkouts.
 

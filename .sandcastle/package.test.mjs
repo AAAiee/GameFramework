@@ -1,18 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
+  copyFileSync,
   mkdtempSync,
   readFileSync,
   realpathSync,
   rmSync,
+  readdirSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-test("the built workflow runs and resumes in an independent consumer without Editor or credentials", (t) => {
+test("the pinned archive isolates independent consumers A then B without Editor or credentials", (t) => {
   const temporary = mkdtempSync(join(tmpdir(), "sandcastle-independent-"));
   t.after(() => {
     const path = realpathSync(temporary);
@@ -26,6 +29,15 @@ test("the built workflow runs and resumes in an independent consumer without Edi
     root,
     manifest.devDependencies["@rebuild/sandcastle"].slice(5),
   );
+  const provenance = JSON.parse(
+    readFileSync(join(root, ".sandcastle/package-provenance.json")),
+  );
+  assert.equal(
+    createHash("sha256").update(readFileSync(archive)).digest("hex"),
+    provenance.sha256,
+  );
+  assert.match(provenance.revision, /^[a-f0-9]{40}$/);
+  assert.match(provenance.image, /^sha256:[a-f0-9]{64}$/);
   writeFileSync(
     join(temporary, "package.json"),
     JSON.stringify({
@@ -51,32 +63,29 @@ test("the built workflow runs and resumes in an independent consumer without Edi
       : args,
     { cwd: temporary, encoding: "utf8", windowsHide: true, timeout: 60000 },
   );
-  writeFileSync(
+  const installed = join(temporary, "node_modules/@rebuild/sandcastle");
+  const inspect = (directory, prefix = "") => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const name = prefix + entry.name;
+      assert.doesNotMatch(
+        name,
+        /(?:^|\/)(?:\.sandcastle|codex-home|logs|worktrees|sessions?|auth\.json|credentials(?:\.json)?|\.npmrc|\.env(?:\.[^/]*)?)(?:\/|$)/,
+      );
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) inspect(path, name + "/");
+      else
+        assert.doesNotMatch(
+          readFileSync(path, "utf8"),
+          /C:[\\/]FinalPolishedProjects|AAAiee\/GameFramework|prompt-A|fixture-token-A/,
+        );
+    }
+  };
+  inspect(installed);
+  for (const name of ["workflow", "workflow-integrations", "workflow-runtime"])
+    assert.ok(readFileSync(join(installed, `docs/${name}.md`)).length > 0);
+  copyFileSync(
+    new URL("./consumer-fixture.mjs", import.meta.url),
     join(temporary, "verify.mjs"),
-    `
-import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync } from 'node:fs';
-import { runWorkflow } from '@rebuild/sandcastle/workflow';
-const calls = []; const task = {id:'fresh-task',criteria:[{id:'C1',description:'Requested behavior works'}]};
-const project = {id:'fresh-consumer',config:{repository:'example/fresh'}};
-const review = async ({candidate}) => {calls.push('review');return {candidate,approved:true,criteria:[{id:'C1',satisfied:true,evidence:'Independent review'}]};};
-const operations = {
- selectTask: async () => task,
- implement: async () => {calls.push('implement');return 'candidate';},
- currentCandidate: async () => 'candidate',
- validate: async ({candidate}) => {calls.push('validate');return {candidate,passed:true,evidence:['Host assertion passed']};},
- review: async () => {calls.push('interrupted-review');throw Error('Unfamiliar interruption');},
- deliver: async ({candidate}) => {calls.push('local-handoff');return {candidate,reference:'local-receipt'};},
- save: async (state) => writeFileSync('checkpoint.json',JSON.stringify(state))
-};
-await assert.rejects(runWorkflow({project,operations}),/Unfamiliar interruption/);
-const checkpoint = JSON.parse(readFileSync('checkpoint.json'));
-assert.equal(checkpoint.phase,'review'); operations.review = review;
-const result = await runWorkflow({project,operations,checkpoint});
-assert.equal(result.phase,'ready');
-assert.deepEqual(calls,['implement','validate','interrupted-review','review','local-handoff']);
-console.log('PASS: independent packaged workflow with durable review resume');
-`,
   );
   const environment = { ...process.env };
   delete environment.NODE_TEST_CONTEXT;
@@ -87,5 +96,5 @@ console.log('PASS: independent packaged workflow with durable review resume');
     windowsHide: true,
     timeout: 30000,
   });
-  assert.match(output, /PASS: independent packaged workflow/);
+  assert.match(output, /PASS: independent packaged A then B/);
 });

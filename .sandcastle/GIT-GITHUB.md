@@ -1,5 +1,9 @@
 # Git/GitHub increment: #34
 
+This records the frozen #34 contract. The subsequent [#35 increment](PACKAGE-ISOLATION.md)
+uses runtime-owned records and `prepareValidation` factories to scope prepared
+worktrees to a compatible project/run.
+
 This increment is local on `rebuild/34-git-github` in the separate Editor and
 customized-fork rebuild worktrees. It has not been promoted into the original
 checkouts, and no GitHub issue has been closed.

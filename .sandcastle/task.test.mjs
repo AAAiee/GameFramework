@@ -12,7 +12,14 @@ const task = {
   id: "fixture-task",
   criteria: [{ id: "behavior", description: "The saved value is doubled" }],
 };
-const read = (path) => JSON.parse(readFileSync(path, "utf8"));
+const read = (path) => JSON.parse(readFileSync(path, "utf8")).value;
+const snapshot = (prepared) => ({
+  head: git(prepared, "rev-parse", "HEAD"),
+  branch: git(prepared, "branch", "--show-current"),
+  staged: git(prepared, "diff", "--cached", "--binary"),
+  unstaged: git(prepared, "diff", "--binary"),
+  status: git(prepared, "status", "--porcelain"),
+});
 
 async function editorFixture(
   t,
@@ -58,21 +65,26 @@ async function editorFixture(
       }),
     );
   });
-  const sandbox = await createSandbox(f.options("task/editor-adapter"));
-  t.after(async () => {
-    await sandbox.close();
-  });
   let validations = 0;
   const options = {
     projectId: "fixture-editor-project",
     task,
-    sandbox,
+    runtime: {
+      repository: f.root,
+      runId: "fixture-task-run",
+      compatibility: "fixture-dependencies-v1",
+      command: createCommandRunner({ cwd: f.root }),
+    },
+    openSandbox: async ({ runtime, branch }) => {
+      options.storage = join(runtime.directory, "records");
+      options.branch = branch;
+      return createSandbox(f.options(branch));
+    },
     agents: { implementer: f.runOptions.agent, reviewer: f.runOptions.agent },
     prompts: {
       implement: "Implement the supplied task and commit locally.",
       review: "Independently inspect the candidate and evidence.",
     },
-    storage: join(f.root, ".sandcastle/logs/task"),
     validate: async ({ worktree, candidate }) => {
       validations++;
       const environment = { ...process.env };
@@ -96,32 +108,41 @@ async function editorFixture(
     },
   };
   if (preparedValidation) {
-    const prepared = join(f.root, ".sandcastle/native-validation");
-    git(
-      f.root,
-      "worktree",
-      "add",
-      "-b",
-      "native-validation",
-      prepared,
-      f.before,
-    );
-    writeFileSync(join(prepared, "source.txt"), "staged validation edit\n");
-    git(prepared, "add", "source.txt");
-    writeFileSync(
-      join(prepared, "source.txt"),
-      "staged plus unstaged validation edit\n",
-    );
-    writeFileSync(join(prepared, "notes.txt"), "untracked validation notes\n");
-    mkdirSync(join(prepared, ".sandcastle/cache"), { recursive: true });
-    writeFileSync(
-      join(prepared, ".sandcastle/cache/native.bin"),
-      "prepared dependency\n",
-    );
-    options.validationWorktree = {
-      source: f.root,
-      path: prepared,
-      command: createCommandRunner({ cwd: f.root }),
+    options.prepareValidation = async ({ directory }) => {
+      const prepared = join(directory, "worktree");
+      if (!existsSync(prepared)) {
+        git(
+          f.root,
+          "worktree",
+          "add",
+          "-b",
+          "native-validation",
+          prepared,
+          f.before,
+        );
+        writeFileSync(join(prepared, "source.txt"), "staged validation edit\n");
+        git(prepared, "add", "source.txt");
+        writeFileSync(
+          join(prepared, "source.txt"),
+          "staged plus unstaged validation edit\n",
+        );
+        writeFileSync(
+          join(prepared, "notes.txt"),
+          "untracked validation notes\n",
+        );
+        mkdirSync(join(prepared, ".sandcastle/cache"), { recursive: true });
+        writeFileSync(
+          join(prepared, ".sandcastle/cache/native.bin"),
+          "prepared dependency\n",
+        );
+      }
+      options.validationWorktree = {
+        source: f.root,
+        path: prepared,
+        command: createCommandRunner({ cwd: f.root }),
+      };
+      options.validationBefore = snapshot(prepared);
+      return options.validationWorktree;
     };
   }
   return { f, options, counts: () => ({ invocations, validations }) };
@@ -133,10 +154,7 @@ test("Editor adapter uses the packaged workflow with the original SDK and hands 
   assert.equal(result.phase, "ready");
   assert.deepEqual(counts(), { invocations: 2, validations: 1 });
   const handoff = read(result.delivery.reference);
-  assert.equal(
-    handoff.candidate,
-    git(f.root, "rev-parse", "task/editor-adapter"),
-  );
+  assert.equal(handoff.candidate, git(f.root, "rev-parse", options.branch));
   assert.equal(handoff.review.criteria[0].satisfied, true);
   assert.equal(git(f.root, "rev-parse", "HEAD"), f.before);
   assert.equal(git(f.root, "remote"), "");
@@ -173,19 +191,11 @@ test("Editor validates in a separate prepared worktree and restores its edits an
   const { f, options, counts } = await editorFixture(t, {
     preparedValidation: true,
   });
-  const prepared = options.validationWorktree.path;
-  const snapshot = () => ({
-    head: git(prepared, "rev-parse", "HEAD"),
-    branch: git(prepared, "branch", "--show-current"),
-    staged: git(prepared, "diff", "--cached", "--binary"),
-    unstaged: git(prepared, "diff", "--binary"),
-    status: git(prepared, "status", "--porcelain"),
-  });
-  const before = snapshot();
   const result = await runEditorTask(options);
+  const prepared = options.validationWorktree.path;
   assert.equal(result.phase, "ready");
   assert.deepEqual(counts(), { invocations: 2, validations: 1 });
-  assert.deepEqual(snapshot(), before);
+  assert.deepEqual(snapshot(prepared), options.validationBefore);
   assert.equal(
     readFileSync(join(prepared, "notes.txt"), "utf8"),
     "untracked validation notes\n",
@@ -209,8 +219,41 @@ test("Editor preserves an unresolved worktree recovery record on validation resu
   await assert.rejects(runEditorTask(options), { code: "gate" });
   const path = join(options.storage, "validation-recovery.json");
   const unresolved = { ...read(path), phase: "restoration-required" };
-  writeFileSync(path, JSON.stringify(unresolved));
+  writeFileSync(
+    path,
+    JSON.stringify({
+      ...JSON.parse(readFileSync(path, "utf8")),
+      value: unresolved,
+    }),
+  );
   await assert.rejects(runEditorTask(options), /recovery is unresolved/);
   assert.deepEqual(read(path), unresolved);
   assert.deepEqual(counts(), { invocations: 1, validations: 1 });
+});
+
+test("Editor acquires the repository lock before opening a sandbox", async (t) => {
+  const { options, counts } = await editorFixture(t);
+  const original = options.openSandbox;
+  let entered;
+  const opened = new Promise((resolve) => {
+    entered = resolve;
+  });
+  let release;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  options.openSandbox = async (context) => {
+    entered();
+    await gate;
+    return original(context);
+  };
+  const first = runEditorTask(options);
+  try {
+    await opened;
+    await assert.rejects(runEditorTask(options), { code: "locked" });
+    assert.deepEqual(counts(), { invocations: 0, validations: 0 });
+  } finally {
+    release();
+  }
+  assert.equal((await first).phase, "ready");
 });
