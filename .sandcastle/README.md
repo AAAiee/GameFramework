@@ -105,3 +105,5 @@ This Editor worktree starts at accepted commit
 The rebuild has not been promoted into the existing checkout. No live queue
 should be restarted until its replacement has been reviewed and explicitly
 authorized for execution.
+
+Evidence identity and immutable local receipts: [EVIDENCE.md](EVIDENCE.md).

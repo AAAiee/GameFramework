@@ -10,7 +10,7 @@
     "sandcastle": "node --experimental-strip-types .sandcastle/main.mts",
     "sandcastle:check": "node --experimental-strip-types .sandcastle/main.mts --check",
     "sandcastle:queue": "node --experimental-strip-types .sandcastle/main.mts --queue",
-    "sandcastle:test": "node --test .sandcastle/baseline.test.mjs .sandcastle/task.test.mjs .sandcastle/package.test.mjs .sandcastle/queue.test.mjs",
+    "sandcastle:test": "node --test .sandcastle/baseline.test.mjs .sandcastle/task.test.mjs .sandcastle/evidence.test.mjs .sandcastle/package.test.mjs .sandcastle/queue.test.mjs",
     "test:sandcastle-baseline": "node Tests/verify-sandcastle-baseline.mjs"
   },
   "repository": {

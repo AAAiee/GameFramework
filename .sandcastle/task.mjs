@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { realpathSync } from "node:fs";
 import { join, sep } from "node:path";
 import {
@@ -59,6 +60,7 @@ async function runTask(
     prepareValidation,
     signal,
     recovery: recoveryOptions,
+    evidence,
     reviewOutput,
   },
   runtime,
@@ -86,7 +88,22 @@ async function runTask(
       },
       action,
     );
-  const handoffFile = join(directory, "records/handoff.json");
+  // Receipts bind the complete observed evidence, not only the unchanged code SHA.
+  const handoffName = (context) =>
+    context.validation?.identity
+      ? `handoff-${createHash("sha256")
+          .update(
+            JSON.stringify({
+              task: context.task,
+              candidate: context.candidate,
+              validation: context.validation,
+              review: context.review,
+            }),
+          )
+          .digest("hex")}`
+      : "handoff";
+  const handoffFile = (context) =>
+    join(directory, `records/${handoffName(context)}.json`);
   const currentCandidate = async () => {
     runtime.assertActive();
     if (
@@ -155,6 +172,17 @@ async function runTask(
     project,
     checkpoint,
     signal,
+    evidence: evidence && {
+      validation: evidence.validation,
+      review: async (context) => {
+        const policy = await evidence.review(context);
+        if (typeof policy !== "string" || !policy.trim())
+          throw new Error("Current independent review policy is unavailable.");
+        return createHash("sha256")
+          .update(JSON.stringify({ policy, prompt: prompts.review }))
+          .digest("hex");
+      },
+    },
     reviewOutput: strictReview
       ? { correct: (context) => review(context, true) }
       : undefined,
@@ -163,7 +191,7 @@ async function runTask(
       reconcile: async (context) => {
         if (context.phase !== "deliver")
           return recovery.reconcile?.(context) ?? { status: "uncertain" };
-        const saved = await runtime.read("handoff");
+        const saved = await runtime.read(handoffName(context));
         if (saved === undefined) return { status: "not-started" };
         if (
           saved.project === project.id &&
@@ -177,7 +205,10 @@ async function runTask(
         )
           return {
             status: "completed",
-            value: { candidate: saved.candidate, reference: handoffFile },
+            value: {
+              candidate: saved.candidate,
+              reference: handoffFile(context),
+            },
           };
         return { status: "uncertain" };
       },
@@ -201,6 +232,9 @@ async function runTask(
       validate: async (context) =>
         measured("validate", context, async (observation) => {
           const { candidate } = context;
+          const previousMeasurements = new Set(
+            measurements.report().records.map(({ id }) => id),
+          );
           const measureCheck = (check, action) =>
             measurements.measure(
               {
@@ -269,6 +303,7 @@ async function runTask(
               (record) =>
                 record.stage === "validate" &&
                 record.check &&
+                !previousMeasurements.has(record.id) &&
                 record.candidate === candidate,
             )
             .map(({ id, check, attempt, retries, durationMs, outcome }) => ({
@@ -287,11 +322,12 @@ async function runTask(
           const { candidate, validation, review } = context;
           if ((await currentCandidate()) !== candidate)
             throw new Error("Candidate changed before local handoff.");
-          if ((await runtime.read("handoff")) !== undefined)
+          const name = handoffName(context);
+          if ((await runtime.read(name)) !== undefined)
             throw new Error(
               "A local handoff already exists; reconcile it before another delivery.",
             );
-          await runtime.save("handoff", {
+          await runtime.save(name, {
             project: project.id,
             task,
             branch: sandbox.branch,
@@ -299,7 +335,7 @@ async function runTask(
             validation,
             review,
           });
-          return { candidate, reference: handoffFile };
+          return { candidate, reference: handoffFile(context) };
         }),
       save: (state) => runtime.save("checkpoint", state),
     },

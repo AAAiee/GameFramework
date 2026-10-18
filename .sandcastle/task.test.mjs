@@ -487,3 +487,51 @@ test("Editor acquires the repository lock before opening a sandbox", async (t) =
   }
   assert.equal((await first).phase, "ready");
 });
+
+test("Editor revalidates changed policy after ready without replacing the previous evidence handoff", async (t) => {
+  const { options, counts } = await editorFixture(t, { measuredCheck: true });
+  let policy = "full-v1";
+  options.recovery = {};
+  options.evidence = {
+    validation: async () => ({
+      policy,
+      dependencies: "fixture-lock-v1",
+      environment: `node:${process.version}:${process.platform}:${process.arch}`,
+    }),
+    review: async () => "fixture-independent-review-v1",
+  };
+  const first = await runEditorTask(options);
+  const oldReceipt = readFileSync(first.delivery.reference, "utf8");
+  policy = "full-v2";
+  const second = await runEditorTask(options);
+  assert.deepEqual(counts(), { invocations: 3, validations: 2 });
+  assert.equal(second.candidate, first.candidate);
+  assert.notEqual(second.delivery.reference, first.delivery.reference);
+  assert.equal(readFileSync(first.delivery.reference, "utf8"), oldReceipt);
+  assert.equal(second.validation.identity.policy, "full-v2");
+  assert.equal(second.validation.timings.length, 1);
+  assert.notEqual(
+    second.validation.timings[0].id,
+    first.validation.timings[0].id,
+  );
+  await runEditorTask(options);
+  assert.deepEqual(counts(), { invocations: 3, validations: 2 });
+});
+
+test("Editor review prompt changes require a fresh independent review of matching validation", async (t) => {
+  const { options, counts } = await editorFixture(t);
+  options.evidence = {
+    validation: async () => ({
+      policy: "host-check-v1",
+      dependencies: "node-fixture-v1",
+      environment: process.version,
+    }),
+    review: async () => "independent-v1",
+  };
+  const first = await runEditorTask(options);
+  options.prompts.review += " Recheck the new review policy.";
+  const second = await runEditorTask(options);
+  assert.deepEqual(counts(), { invocations: 3, validations: 1 });
+  assert.equal(second.candidate, first.candidate);
+  assert.notEqual(second.delivery.reference, first.delivery.reference);
+});
