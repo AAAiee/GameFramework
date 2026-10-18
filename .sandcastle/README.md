@@ -1,15 +1,16 @@
-# Original Sandcastle baseline
+# Original SDK baseline and single-task increment
 
-This branch is the first increment of the pipeline rebuild. It consumes the
-original npm package `@ai-hero/sandcastle@0.12.0`, with an exact version and npm
-integrity in the lockfile. It imports only the package's existing public APIs.
-There is no customized `@ai-hero/sandcastle/workflow` dependency.
+The original npm package `@ai-hero/sandcastle@0.12.0` remains pinned and supplies
+agent invocation and worktree lifecycle. The candidate single-task workflow is
+installed separately as `@rebuild/sandcastle`, from a content-addressed local
+archive. It is exercised explicitly by tests and the adapter, not by the live queue.
 
 The original published source revision is
 `e99f832f26dc9d245c019a9ddd19fa5dee792427`. Package provenance is recorded in
 [baseline.json](baseline.json). The separate fork worktree
-`../sandcastleCustomized-pipeline-rebuild` starts at that exact upstream commit
-and has no custom source changes.
+`../sandcastleCustomized-pipeline-rebuild` starts at that exact upstream commit.
+The frozen source remains on `rebuild/original-0.12.0`; current changes are on
+`rebuild/33-single-task`. The original Editor baseline is commit `43ada0e`.
 
 ## Run this increment
 
@@ -51,6 +52,10 @@ and sandbox cleanup. Its documented policy is to fail fast on provider errors;
 persistent workflow recovery belongs in a separately tested pipeline layer.
 
 ## Rebuild sequence
+
+The first single-task increment is implemented locally. See
+[the adapter and evidence](SINGLE-TASK.md). No GitHub ticket has been closed and
+the implementation has not been promoted into the original checkouts.
 
 Each increment must have a bounded diff and evidence at its public boundary.
 Keep the SDK/package used to execute work fixed while testing its successor.
