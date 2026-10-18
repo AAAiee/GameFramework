@@ -535,3 +535,57 @@ test("Editor review prompt changes require a fresh independent review of matchin
   assert.equal(second.candidate, first.candidate);
   assert.notEqual(second.delivery.reference, first.delivery.reference);
 });
+
+test("Editor prepares before evidence discovery and shares the preserved worktree across diagnostics and full acceptance", async (t) => {
+  const { options, counts } = await editorFixture(t, {
+    preparedValidation: true,
+  });
+  const phases = [];
+  options.evidence = {
+    validation: async (context) => {
+      const prepared = await context.project.config.validationWorktree(
+        context.candidate,
+      );
+      assert.equal(prepared.path, options.validationWorktree.path);
+      return {
+        policy: "diagnostic-and-final",
+        dependencies: "fixture-pins",
+        environment: "host-node",
+      };
+    },
+    review: async () => "independent-review",
+  };
+  options.diagnose = async ({ worktree, candidate }) => {
+    phases.push("diagnose");
+    assert.equal(worktree, options.validationWorktree.path);
+    assert.equal(git(worktree, "rev-parse", "HEAD"), candidate);
+    return {
+      candidate,
+      passed: true,
+      evidence: ["incremental-debug.json"],
+      nativeTimings: [
+        {
+          check: "build-Debug",
+          durationMs: 123,
+          passed: true,
+          log: "build.log",
+        },
+      ],
+    };
+  };
+  const validate = options.validate;
+  options.validate = async (context) => {
+    phases.push("validate");
+    return validate(context);
+  };
+  const ready = await runEditorTask(options);
+  assert.deepEqual(phases, ["diagnose", "validate"]);
+  assert.deepEqual(ready.diagnostic.nativeTimings, [
+    { check: "build-Debug", durationMs: 123, passed: true, log: "build.log" },
+  ]);
+  assert.deepEqual(
+    snapshot(options.validationWorktree.path),
+    options.validationBefore,
+  );
+  assert.deepEqual(counts(), { invocations: 2, validations: 1 });
+});

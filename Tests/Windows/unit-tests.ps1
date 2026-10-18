@@ -40,7 +40,7 @@ function Invoke-Recorded([string] $Name, [string] $Executable, [string] $Argumen
     $stderr = Join-Path $evidence "$Name.stderr.log"
     $process = $null
     try {
-        $process = Start-Process -FilePath $Executable -ArgumentList $Arguments `
+        $process = Start-Process -WindowStyle Hidden -FilePath $Executable -ArgumentList $Arguments `
             -WorkingDirectory $repository -RedirectStandardOutput $stdout `
             -RedirectStandardError $stderr -PassThru
         if (-not $process.WaitForExit($Timeout)) { throw "$Name timed out after $Timeout ms" }

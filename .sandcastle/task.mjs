@@ -57,6 +57,7 @@ async function runTask(
     agents,
     prompts,
     validate,
+    diagnose,
     prepareValidation,
     signal,
     recovery: recoveryOptions,
@@ -118,9 +119,103 @@ async function runTask(
       );
     return git(sandbox.worktreePath, "rev-parse", "HEAD");
   };
+  const validationWorktree = async (candidate) => {
+    const recovery = await runtime.read("validation-recovery");
+    if (prepareValidation && recovery && recovery.phase !== "restored")
+      throw new Error(
+        "Prepared worktree recovery is unresolved; preserve its recorded changes before another validation.",
+      );
+    return prepareValidation
+      ? await runtime.resource("native-validation", {
+          identity: runtime.compatibility,
+          create: async (directory) => {
+            const prepared = await prepareValidation({
+              directory,
+              runtime,
+              candidate,
+            });
+            if (
+              !realpathSync(prepared.path).startsWith(
+                realpathSync(directory) + sep,
+              )
+            )
+              throw new Error(
+                "Prepared validation must stay inside this run's resource directory.",
+              );
+            return prepared;
+          },
+        })
+      : undefined;
+  };
+  const hostPhase = (phase, action, context) =>
+    measured(phase, context, async (observation) => {
+      const { candidate } = context;
+      const previousMeasurements = new Set(
+        measurements.report().records.map(({ id }) => id),
+      );
+      const measureCheck = (check, action) =>
+        measurements.measure(
+          {
+            stage: phase,
+            check,
+            candidate,
+            attempt: context.attempt?.implementation,
+            retries: context.attempt
+              ? context.attempt.transport - 1
+              : undefined,
+          },
+          async (checkObservation) => {
+            const value = await action();
+            if (value?.passed === false) checkObservation.rejected();
+            return value;
+          },
+        );
+      const prepared = await validationWorktree(candidate);
+      const result = await (prepared
+        ? withPreparedWorktree(
+            {
+              source: prepared.source,
+              prepared: prepared.path,
+              candidate,
+              command: prepared.command,
+              saveRecovery: (record) =>
+                runtime.save("validation-recovery", record),
+            },
+            (worktree) => action({ worktree, candidate, signal, measureCheck }),
+          )
+        : action({
+            worktree: sandbox.worktreePath,
+            candidate,
+            signal,
+            measureCheck,
+          }));
+      if (result.passed === false) observation.rejected();
+      const timings = measurements
+        .report()
+        .records.filter(
+          (record) =>
+            record.stage === phase &&
+            record.check &&
+            !previousMeasurements.has(record.id) &&
+            record.candidate === candidate,
+        )
+        .map(({ id, check, attempt, retries, durationMs, outcome }) => ({
+          id,
+          check,
+          attempt,
+          retries,
+          durationMs,
+          outcome,
+        }));
+      return { ...result, timings };
+    });
   const project = {
     id: projectId,
-    config: { branch: sandbox.branch, worktree: sandbox.worktreePath },
+    config: {
+      branch: sandbox.branch,
+      worktree: sandbox.worktreePath,
+      validationWorktree,
+    },
   };
   const recovery = recoveryOptions ?? (checkpoint?.recovery ? {} : undefined);
   const strictReview =
@@ -171,6 +266,9 @@ async function runTask(
   return runWorkflow({
     project,
     checkpoint,
+    diagnostics: diagnose
+      ? (context) => hostPhase("diagnose", diagnose, context)
+      : undefined,
     signal,
     evidence: evidence && {
       validation: evidence.validation,
@@ -229,93 +327,7 @@ async function runTask(
           return currentCandidate();
         }),
       currentCandidate,
-      validate: async (context) =>
-        measured("validate", context, async (observation) => {
-          const { candidate } = context;
-          const previousMeasurements = new Set(
-            measurements.report().records.map(({ id }) => id),
-          );
-          const measureCheck = (check, action) =>
-            measurements.measure(
-              {
-                stage: "validate",
-                check,
-                candidate,
-                attempt: context.attempt?.implementation,
-                retries: context.attempt
-                  ? context.attempt.transport - 1
-                  : undefined,
-              },
-              async (checkObservation) => {
-                const value = await action();
-                if (value?.passed === false) checkObservation.rejected();
-                return value;
-              },
-            );
-          const recovery = await runtime.read("validation-recovery");
-          if (prepareValidation && recovery && recovery.phase !== "restored")
-            throw new Error(
-              "Prepared worktree recovery is unresolved; preserve its recorded changes before another validation.",
-            );
-          const validationWorktree = prepareValidation
-            ? await runtime.resource("native-validation", {
-                identity: runtime.compatibility,
-                create: async (directory) => {
-                  const prepared = await prepareValidation({
-                    directory,
-                    runtime,
-                  });
-                  if (
-                    !realpathSync(prepared.path).startsWith(
-                      realpathSync(directory) + sep,
-                    )
-                  )
-                    throw new Error(
-                      "Prepared validation must stay inside this run's resource directory.",
-                    );
-                  return prepared;
-                },
-              })
-            : undefined;
-          const result = await (validationWorktree
-            ? withPreparedWorktree(
-                {
-                  source: validationWorktree.source,
-                  prepared: validationWorktree.path,
-                  candidate,
-                  command: validationWorktree.command,
-                  saveRecovery: (record) =>
-                    runtime.save("validation-recovery", record),
-                },
-                (worktree) =>
-                  validate({ worktree, candidate, signal, measureCheck }),
-              )
-            : validate({
-                worktree: sandbox.worktreePath,
-                candidate,
-                signal,
-                measureCheck,
-              }));
-          if (result.passed === false) observation.rejected();
-          const timings = measurements
-            .report()
-            .records.filter(
-              (record) =>
-                record.stage === "validate" &&
-                record.check &&
-                !previousMeasurements.has(record.id) &&
-                record.candidate === candidate,
-            )
-            .map(({ id, check, attempt, retries, durationMs, outcome }) => ({
-              id,
-              check,
-              attempt,
-              retries,
-              durationMs,
-              outcome,
-            }));
-          return { ...result, timings };
-        }),
+      validate: (context) => hostPhase("validate", validate, context),
       review: (context) => review(context, false),
       deliver: async (context) =>
         measured("deliver", context, async () => {
