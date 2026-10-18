@@ -17,8 +17,13 @@ $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path -LiteralPath $Worktree).Path
 $previousProtocol = $env:GIT_ALLOW_PROTOCOL
 $previousLazyFetch = $env:GIT_NO_LAZY_FETCH
+$previousNodeReuse = $env:MSBUILDDISABLENODEREUSE
+$previousPdbEndpoint = $env:_MSPDBSRV_ENDPOINT_
 $env:GIT_ALLOW_PROTOCOL = 'file'
 $env:GIT_NO_LAZY_FETCH = '1'
+$env:MSBUILDDISABLENODEREUSE = '1'
+# Prevent cl/link from delegating writes to another invocation's shared server.
+$env:_MSPDBSRV_ENDPOINT_ = "native-$([Guid]::NewGuid().ToString('N'))"
 $results = [System.Collections.Generic.List[string]]::new()
 $report = $null
 $checks = [System.Collections.Generic.List[object]]::new()
@@ -182,7 +187,7 @@ try {
     $results.Add("Windows acceptance scripts: $($windowsChecks.Count). UI coverage is limited to these scripts.")
     Invoke-Check -Name 'generate' -Executable (Join-Path $root 'Vendor/Binaries/Premake/Windows/premake5.exe') -CommandArguments @('--file=Build.lua', 'vs2022') -Directory $root
     foreach ($configuration in $configurations) {
-        Invoke-Check -Name "build-$configuration" -Executable $MSBuild -CommandArguments @('Rubber Engine.sln', "/t:$BuildTarget", '/m', "/p:Configuration=$configuration", '/p:Platform=x64', '/v:minimal', '/nologo') -Directory $root
+        Invoke-Check -Name "build-$configuration" -Executable $MSBuild -CommandArguments @('Rubber Engine.sln', "/t:$BuildTarget", '/m', '/nr:false', "/p:Configuration=$configuration", '/p:Platform=x64', '/v:minimal', '/nologo') -Directory $root
         $regressionDirectory = Join-Path $root "Binaries/windows-x86_64/$configuration/Regression"
         if ($fullSuite) {
             Invoke-Check -Name "regression-all-$configuration" -Executable (Join-Path $regressionDirectory 'Regression.exe') -CommandArguments @() -Directory $regressionDirectory -TimeoutSeconds 240 -ExpectedPattern '(?m)^PASS: '
@@ -218,4 +223,6 @@ finally {
     }
     $env:GIT_ALLOW_PROTOCOL = $previousProtocol
     $env:GIT_NO_LAZY_FETCH = $previousLazyFetch
+    $env:MSBUILDDISABLENODEREUSE = $previousNodeReuse
+    $env:_MSPDBSRV_ENDPOINT_ = $previousPdbEndpoint
 }
