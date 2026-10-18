@@ -1,5 +1,14 @@
 # Explicit durable task recovery
 
+The integrated recovery package selects committed fork revision
+`014f16b7dcb99b98ec9d13c70b4f4c1d525dc592`, built offline with the pinned Linux
+image/toolchain. Archive SHA-256 is
+`07f6068740d30c9b3613e018feb8d9ad04be3a0be2c954a10fd3bf06ff42886d`;
+[package-provenance.json](package-provenance.json), the vendor archive, dependency
+manifest and lockfile carry the same identity. Original registry SDK remains
+exact `0.12.0`. One canonical build was performed for this increment; independent
+final artifact reproduction remains a #43 gate.
+
 `runEditorTask({ ...options, recovery: {} })` enables the fork's fixed recovery
 budgets for a new task/run: three implementation attempts total and three
 transport attempts for each operation/candidate. Existing fail-fast callers keep
