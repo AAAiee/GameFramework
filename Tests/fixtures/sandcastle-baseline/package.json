@@ -1,0 +1,28 @@
+{
+  "name": "editor",
+  "version": "1.0.0",
+  "description": "**简体中文** | [English](README.md) | [GameExample 分支](https://github.com/AAAiee/GameFramework/tree/GameExample)",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "sandcastle": "node --experimental-strip-types .sandcastle/main.mts",
+    "sandcastle:check": "node --experimental-strip-types .sandcastle/main.mts --check",
+    "sandcastle:test": "node --test .sandcastle/workflow.test.mjs .sandcastle/github.test.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AAAiee/GameFramework.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/AAAiee/GameFramework/issues"
+  },
+  "homepage": "https://github.com/AAAiee/GameFramework#readme",
+  "devDependencies": {
+    "@ai-hero/sandcastle": "^0.12.0"
+  }
+}

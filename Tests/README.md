@@ -1497,3 +1497,12 @@ temporary preinclude supporting the existing MSVC `ui32` suffix and mapping
 `__debugbreak` to a compiler trap for syntax checking only. No production macros
 were changed. The MSVC SEH Debug fixture, linking and real-context runtime were
 not executed on Linux; both configurations' Windows runs remain required.
+
+## Preserved Sandcastle baseline (issue #32)
+
+Run `npm run test:sandcastle-baseline` with Node 22+ and Git. This verifies all
+15 original file checksums and reruns the original 32 orchestration tests using
+temporary Git repositories and simulated GitHub responses. It starts no agents
+and performs no remote writes. See [the preservation record](../docs/sandcastle-baseline.md)
+for reconciliation, ownership and the extraction handoff. Native acceptance
+remains the Windows host's responsibility; these tests do not replace it.
