@@ -5,7 +5,9 @@ param(
     [Parameter(Mandatory = $true)]
     [string] $BinaryRoot,
     [Parameter(Mandatory = $true)]
-    [string] $MSBuild
+    [string] $MSBuild,
+    [string] $VCToolsVersion,
+    [string] $WindowsTargetPlatformVersion
 )
 
 $ErrorActionPreference = 'Stop'
@@ -28,6 +30,9 @@ $project = Join-Path $repository 'Tests/UnitTests.vcxproj'
 if (-not (Test-Path -LiteralPath $project) -or -not (Test-Path -LiteralPath $MSBuild)) {
     throw 'Generate VS2022 projects first and supply the installed MSBuild.exe path'
 }
+$toolchain = & (Join-Path $repository "Scripts/Resolve-NativeToolchain.ps1") -MSBuild $MSBuild -VCToolsVersion $VCToolsVersion -WindowsTargetPlatformVersion $WindowsTargetPlatformVersion
+$VCToolsVersion = $toolchain.toolset
+$WindowsTargetPlatformVersion = $toolchain.sdk
 $outputDirectory = Join-Path $BinaryRoot 'UnitTests'
 $null = New-Item -ItemType Directory -Force -Path $outputDirectory
 $evidence = Join-Path $outputDirectory 'issue-29'
@@ -38,6 +43,7 @@ Set-Content -LiteralPath $summary -Value "Configuration: $Configuration; UTC: $(
 $commit = & git -C $repository rev-parse HEAD
 if ($LASTEXITCODE -ne 0) { throw 'Cannot identify candidate commit' }
 Add-Content -LiteralPath $summary -Value "Candidate: $commit; MSBuild: $MSBuild"
+Add-Content -LiteralPath $summary -Value "Toolchain: $($toolchain | ConvertTo-Json -Depth 4 -Compress)"
 
 function Invoke-Recorded([string] $Name, [string] $Executable, [string] $Arguments, [int] $Timeout) {
     $stdout = Join-Path $evidence "$Name.stdout.log"
@@ -67,7 +73,7 @@ function Invoke-Recorded([string] $Name, [string] $Executable, [string] $Argumen
 }
 
 function Build-Target([string] $Name, [string] $ProjectPath, [string] $Extra = '') {
-    $arguments = '"{0}" /t:Rebuild /m:1 /nr:false /p:Configuration={1} /p:Platform=x64 /v:minimal /nologo {2}' -f $ProjectPath, $Configuration, $Extra
+    $arguments = '"{0}" /t:Rebuild /m:1 /nr:false /p:Configuration={1} /p:Platform=x64 /p:VCToolsVersion={3} /p:WindowsTargetPlatformVersion={4} /p:PreferredToolArchitecture=x64 /v:minimal /nologo {2}' -f $ProjectPath, $Configuration, $Extra, $VCToolsVersion, $WindowsTargetPlatformVersion
     if ((Invoke-Recorded $Name $MSBuild $arguments 180000) -ne 0) {
         throw "$Name failed; see $evidence"
     }

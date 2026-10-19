@@ -427,6 +427,7 @@ export function createEditorNativeValidation({
     "../Scripts/Inspect-NativeEnvironment.ps1",
     import.meta.url,
   );
+  let selectedToolchain;
   const plans = {
     diagnose: selectNativePlan({ phase: "diagnose", issue }),
     validate: selectNativePlan({ phase: "validate", issue }),
@@ -434,6 +435,10 @@ export function createEditorNativeValidation({
   const run =
     (phase) =>
     async ({ worktree, candidate, signal }) => {
+      if (!selectedToolchain)
+        throw new Error(
+          "Native environment discovery is required before building.",
+        );
       await nativeDependencies({ prepared: worktree, source, candidate });
       const directory = join(
         reportsDirectory,
@@ -457,6 +462,10 @@ export function createEditorNativeValidation({
             worktree,
             "-MSBuild",
             msbuild,
+            "-VCToolsVersion",
+            selectedToolchain.toolset,
+            "-WindowsTargetPlatformVersion",
+            selectedToolchain.sdk,
             "-Phase",
             phase,
             "-BuildTarget",
@@ -547,6 +556,10 @@ export function createEditorNativeValidation({
           plans,
           driver: readFileSync(script, "utf8"),
           inspector: readFileSync(inspect, "utf8"),
+          toolchainResolver: readFileSync(
+            new URL("../Scripts/Resolve-NativeToolchain.ps1", import.meta.url),
+            "utf8",
+          ),
           adapter: readFileSync(new URL(import.meta.url), "utf8"),
           processBoundary: readFileSync(
             new URL(
@@ -582,7 +595,9 @@ export function createEditorNativeValidation({
           ],
           { windowsHide: true, signal: context.signal, timeout: 30000 },
         );
-        return JSON.stringify(stable(JSON.parse(stdout)));
+        const environment = JSON.parse(stdout);
+        selectedToolchain = environment.toolchain;
+        return JSON.stringify(stable(environment));
       },
       reviewPolicy,
     }),
