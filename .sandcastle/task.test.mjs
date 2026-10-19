@@ -857,14 +857,14 @@ test(
       const prepared = await prepare(context);
       processes = createOwnedProcessRunner({
         directory: join(context.directory, "owned-processes"),
-        windowsPowerShell: execFileSync("pwsh.exe", [
-          "-NoProfile",
-          "-Command",
-          "(Get-Process -Id $PID).Path",
-        ], {
-          encoding: "utf8",
-          windowsHide: true,
-        })
+        windowsPowerShell: execFileSync(
+          "pwsh.exe",
+          ["-NoProfile", "-Command", "(Get-Process -Id $PID).Path"],
+          {
+            encoding: "utf8",
+            windowsHide: true,
+          },
+        )
           .trim()
           .split(/\r?\n/)[0],
       });
@@ -897,12 +897,17 @@ test(
           cause instanceof OwnedProcessError &&
           cause.kind === "cancelled" &&
           cause.quiescent
-        )
+        ) {
+          // This callback has not returned to prepared-worktree restoration yet.
+          const stopped = readFileSync(marker, "utf8");
+          await new Promise((resolve) => setTimeout(resolve, 150));
+          assert.equal(readFileSync(marker, "utf8"), stopped);
           throw new WorkflowOperationError(
             "transport",
             "Confirmed native cancellation",
             cause,
           );
+        }
         throw cause;
       }
     };
