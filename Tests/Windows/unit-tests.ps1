@@ -10,6 +10,10 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+# Standalone focused invocations also need private build workers/PDB writes.
+# The owning process boundary terminates these descendants before release.
+$env:MSBUILDDISABLENODEREUSE = '1'
+$env:_MSPDBSRV_ENDPOINT_ = "unit-$([Guid]::NewGuid().ToString('N'))"
 $repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 if (-not [IO.Path]::IsPathRooted($BinaryRoot) -or
     -not [IO.Path]::IsPathRooted($MSBuild)) {
@@ -40,7 +44,7 @@ function Invoke-Recorded([string] $Name, [string] $Executable, [string] $Argumen
     $stderr = Join-Path $evidence "$Name.stderr.log"
     $process = $null
     try {
-        $process = Start-Process -FilePath $Executable -ArgumentList $Arguments `
+        $process = Start-Process -WindowStyle Hidden -FilePath $Executable -ArgumentList $Arguments `
             -WorkingDirectory $repository -RedirectStandardOutput $stdout `
             -RedirectStandardError $stderr -PassThru
         if (-not $process.WaitForExit($Timeout)) { throw "$Name timed out after $Timeout ms" }
@@ -103,7 +107,20 @@ Run-Passing 'before'
 # Override outputs to isolate the failing binary; never edit the tracked runner.
 $token = [Guid]::NewGuid().ToString('N')
 $probeProject = Join-Path $repository "Tests/UnitTests-probe-$token.vcxproj"
-$probeDirectory = Join-Path $outputDirectory "probe-$token"
+# Keep disposable build outputs near the prepared root. Deep run-owned worktrees
+# otherwise push MSVC FileTracker's Release link-cvtres tlogs beyond normal paths.
+$probeDirectory = [IO.Path]::GetFullPath((Join-Path $repository "Binaries/p-$token"))
+$ownedBinaries = [IO.Path]::GetFullPath((Join-Path $repository 'Binaries'))
+if (-not $probeDirectory.StartsWith($ownedBinaries + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase) -or
+    [IO.Path]::GetFileName($probeDirectory) -ne "p-$token") {
+    throw 'Failure probe output must remain inside this prepared worktree Binaries directory'
+}
+$probeParent = Get-Item -LiteralPath $ownedBinaries
+while ($probeParent.FullName -ine $repository) {
+    if ($probeParent.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Failure probe directory ancestry must not redirect outside its prepared worktree' }
+    $probeParent = $probeParent.Parent
+    if ($null -eq $probeParent) { throw 'Failure probe directory is outside its prepared worktree' }
+}
 $null = New-Item -ItemType Directory -Path $probeDirectory
 try {
     $runner = Join-Path $repository 'Tests/unit/UnitTests.cpp'
@@ -142,6 +159,7 @@ try {
     }
 } finally {
     Remove-Item -LiteralPath $probeProject -Force -ErrorAction SilentlyContinue
+    if ((Get-Item -LiteralPath $probeDirectory).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Failure probe directory changed ownership; preserve it for inspection' }
     Remove-Item -LiteralPath $probeDirectory -Recurse -Force
 }
 

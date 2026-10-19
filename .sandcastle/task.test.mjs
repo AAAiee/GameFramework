@@ -7,6 +7,10 @@ import { join } from "node:path";
 import { createSandbox } from "@ai-hero/sandcastle";
 import { WorkflowOperationError } from "@rebuild/sandcastle/workflow";
 import { createCommandRunner } from "@rebuild/sandcastle/workflow/integrations";
+import {
+  createOwnedProcessRunner,
+  OwnedProcessError,
+} from "@rebuild/sandcastle/workflow/process";
 import { fixture, git, success } from "./test-fixture.mjs";
 import { runEditorTask } from "./task.mjs";
 
@@ -745,3 +749,188 @@ test("Editor review prompt changes require a fresh independent review of matchin
   assert.equal(second.candidate, first.candidate);
   assert.notEqual(second.delivery.reference, first.delivery.reference);
 });
+
+test("Editor prepares before evidence discovery and shares the preserved worktree across diagnostics and full acceptance", async (t) => {
+  const { options, counts } = await editorFixture(t, {
+    preparedValidation: true,
+  });
+  const phases = [];
+  options.evidence = {
+    validation: async (context) => {
+      const prepared = await context.project.config.validationWorktree(
+        context.candidate,
+      );
+      assert.equal(prepared.path, options.validationWorktree.path);
+      return {
+        policy: "diagnostic-and-final",
+        dependencies: "fixture-pins",
+        environment: "host-node",
+      };
+    },
+    review: async () => "independent-review",
+  };
+  options.diagnose = async ({ worktree, candidate }) => {
+    phases.push("diagnose");
+    assert.equal(worktree, options.validationWorktree.path);
+    assert.equal(git(worktree, "rev-parse", "HEAD"), candidate);
+    return {
+      candidate,
+      passed: true,
+      evidence: ["incremental-debug.json"],
+      nativeTimings: [
+        {
+          check: "build-Debug",
+          durationMs: 123,
+          passed: true,
+          log: "build.log",
+        },
+      ],
+    };
+  };
+  const validate = options.validate;
+  options.validate = async (context) => {
+    phases.push("validate");
+    return validate(context);
+  };
+  const ready = await runEditorTask(options);
+  assert.deepEqual(phases, ["diagnose", "validate"]);
+  assert.deepEqual(ready.diagnostic.nativeTimings, [
+    { check: "build-Debug", durationMs: 123, passed: true, log: "build.log" },
+  ]);
+  assert.deepEqual(
+    snapshot(options.validationWorktree.path),
+    options.validationBefore,
+  );
+  assert.deepEqual(counts(), { invocations: 2, validations: 1 });
+});
+
+test("Editor retains its runtime lock and prepared preservation record when native process ownership is uncertain", async (t) => {
+  const { f, options } = await editorFixture(t, { preparedValidation: true });
+  let quiescent = true;
+  const prepare = options.prepareValidation;
+  options.prepareValidation = async (context) => ({
+    ...(await prepare(context)),
+    quiescent: () => quiescent,
+    close: () => {
+      if (!quiescent) throw new Error("Owned native job remains uncertain");
+    },
+  });
+  options.validate = async () => {
+    quiescent = false;
+    throw new Error("Native supervisor response was lost");
+  };
+  await assert.rejects(runEditorTask(options), { code: "cleanup" });
+  assert.equal(
+    git(options.validationWorktree.path, "rev-parse", "HEAD"),
+    git(f.root, "rev-parse", options.branch),
+  );
+  assert.equal(
+    read(join(options.storage, "validation-recovery.json")).phase,
+    "restoration-required",
+  );
+  const lock = join(f.root, ".git/sandcastle/runtime-v1/writer.lock");
+  assert.equal(
+    JSON.parse(readFileSync(lock, "utf8")).status,
+    "cleanup-required",
+  );
+  assert.ok(
+    git(options.validationWorktree.path, "stash", "list").includes(
+      "sandcastle-preserve:",
+    ),
+  );
+});
+
+test(
+  "confirmed owned-process cancellation stops a real grandchild before restoring edits and resumes without another implementation",
+  { skip: process.platform !== "win32" },
+  async (t) => {
+    const { f, options, counts } = await editorFixture(t, {
+      preparedValidation: true,
+    });
+    const controller = new AbortController();
+    options.signal = controller.signal;
+    options.recovery = { wait: async () => {} };
+    const prepare = options.prepareValidation;
+    let processes;
+    let marker;
+    options.prepareValidation = async (context) => {
+      const prepared = await prepare(context);
+      processes = createOwnedProcessRunner({
+        directory: join(context.directory, "owned-processes"),
+        windowsPowerShell: execFileSync(
+          "pwsh.exe",
+          ["-NoProfile", "-Command", "(Get-Process -Id $PID).Path"],
+          {
+            encoding: "utf8",
+            windowsHide: true,
+          },
+        )
+          .trim()
+          .split(/\r?\n/)[0],
+      });
+      marker = join(prepared.path, ".sandcastle/cache/heartbeat.txt");
+      return {
+        ...prepared,
+        quiescent: () => processes.isQuiescent(),
+        close: () => processes.assertQuiescent(),
+      };
+    };
+    const validate = options.validate;
+    options.validate = async ({ worktree }) => {
+      const grandchild = `const fs=require('node:fs');setInterval(()=>fs.appendFileSync(${JSON.stringify(marker)},'tick\\n'),30);`;
+      const child = `require('node:child_process').spawn(process.execPath,['-e',${JSON.stringify(grandchild)}],{stdio:'ignore'});setInterval(()=>{},1000);`;
+      const pending = processes.run({
+        executable: process.execPath,
+        args: ["-e", child],
+        cwd: worktree,
+        signal: controller.signal,
+        timeoutMs: 15000,
+      });
+      const deadline = Date.now() + 10000;
+      while (!existsSync(marker) && Date.now() < deadline)
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      controller.abort(new Error("operator paused native validation"));
+      try {
+        await pending;
+      } catch (cause) {
+        if (
+          cause instanceof OwnedProcessError &&
+          cause.kind === "cancelled" &&
+          cause.quiescent
+        ) {
+          // This callback has not returned to prepared-worktree restoration yet.
+          const stopped = readFileSync(marker, "utf8");
+          await new Promise((resolve) => setTimeout(resolve, 150));
+          assert.equal(readFileSync(marker, "utf8"), stopped);
+          throw new WorkflowOperationError(
+            "transport",
+            "Confirmed native cancellation",
+            cause,
+          );
+        }
+        throw cause;
+      }
+    };
+    await assert.rejects(runEditorTask(options), { code: "cancelled" });
+    assert.equal(processes.isQuiescent(), true);
+    assert.equal(existsSync(marker), true);
+    const stopped = readFileSync(marker, "utf8");
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    assert.equal(readFileSync(marker, "utf8"), stopped);
+    assert.deepEqual(
+      snapshot(options.validationWorktree.path),
+      options.validationBefore,
+    );
+    assert.equal(
+      existsSync(join(f.root, ".git/sandcastle/runtime-v1/writer.lock")),
+      false,
+    );
+    const saved = read(join(options.storage, "checkpoint.json"));
+    assert.equal(saved.recovery.implementationAttempts, 1);
+    assert.equal(saved.recovery.operations["validate/1"].status, "interrupted");
+    delete options.signal;
+    options.validate = validate;
+    assert.equal((await runEditorTask(options)).phase, "ready");
+    assert.deepEqual(counts(), { invocations: 2, validations: 1 });
+  },
+);
