@@ -112,6 +112,8 @@ awaits meaningful checks; after its exit remaining owned tool services terminate
 and zero active owned processes is required before restoration. MSBuild node
 reuse is disabled; each driver/focused UnitTests invocation has a distinct
 PDB-server endpoint, preventing delegation to a preexisting shared tool process.
+Reference contracts: [MSBuild node reuse](https://learn.microsoft.com/en-us/visualstudio/msbuild/msbuild-command-line-reference)
+and [Microsoft BuildXL MSVC endpoint isolation](https://github.com/microsoft/BuildXL/blob/main/Public/Sdk/Experimental/Msvc/Native/Tools/Link/Link.dsc).
 
 Confirmed cancellation stops owned processes before restoration. Unknown process
 ownership preserves the lock, receipts and prepared state. Use the boundary's
