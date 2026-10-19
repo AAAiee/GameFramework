@@ -26,6 +26,6 @@
   "homepage": "https://github.com/AAAiee/GameFramework#readme",
   "devDependencies": {
     "@ai-hero/sandcastle": "0.12.0",
-    "@rebuild/sandcastle": "file:.sandcastle/vendor/sandcastle-0.12.0-7d4708dd9325.tgz"
+    "@rebuild/sandcastle": "file:.sandcastle/vendor/sandcastle-0.12.0-f2b3bb747a53.tgz"
   }
 }
