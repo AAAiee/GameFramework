@@ -16,7 +16,11 @@ The original published source revision is
 [baseline.json](baseline.json). The separate fork worktree
 `../sandcastleCustomized-pipeline-rebuild` starts at that exact upstream commit.
 The frozen source remains on `rebuild/original-0.12.0`; current changes are on
-`rebuild/35-package-isolation`. The original Editor baseline is commit `43ada0e`.
+`rebuild/spec-28-integration`. The original Editor baseline is commit `43ada0e`.
+
+Current test procedures: [Tests/README.md](../Tests/README.md), including
+[native diagnostics and final acceptance](../Tests/recipes/native-validation.md).
+Stage input contracts: [complete context packets](CONTEXT-PACKETS.md).
 
 ## Run this increment
 
