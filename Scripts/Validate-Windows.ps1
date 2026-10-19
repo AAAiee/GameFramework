@@ -4,6 +4,8 @@ param(
     [Parameter(Mandatory)]
     [string]$Worktree,
     [string]$MSBuild,
+    [string]$VCToolsVersion,
+    [string]$WindowsTargetPlatformVersion,
     [ValidateSet('diagnose', 'validate')]
     [string]$Phase = 'validate',
     [ValidateSet('Build', 'Rebuild')]
@@ -31,6 +33,7 @@ $validationStatus = 'failed'
 $head = $null
 $failureKind = 'prerequisite'
 $failureMessage = $null
+$toolchain = $null
 
 function Read-Git {
     param([string[]]$GitArguments)
@@ -128,6 +131,9 @@ try {
         if (-not $MSBuild) { throw 'Visual Studio 2022 with the x64 C++ toolchain was not found. Pass -MSBuild explicitly.' }
     }
     $MSBuild = (Resolve-Path -LiteralPath $MSBuild).Path
+    $toolchain = & (Join-Path $PSScriptRoot "Resolve-NativeToolchain.ps1") -MSBuild $MSBuild -VCToolsVersion $VCToolsVersion -WindowsTargetPlatformVersion $WindowsTargetPlatformVersion
+    $VCToolsVersion = $toolchain.toolset
+    $WindowsTargetPlatformVersion = $toolchain.sdk
     $allSelectors = @('scene-hooks', 'camera-inverse', 'renderer-batches', 'entity-tags', 'viewport-pixels', 'minimize-restore', 'layer-partition', 'typed-events', 'event-names', 'font-atlas', 'atlas-placeholders', 'gl-boundaries', 'gl-buffers')
     $allWindows = @(12, 15, 16, 17, 18 | ForEach-Object { @{ script = "Tests/Windows/issue-$_.ps1"; marker = "PASS: editor-issue-$_" } })
     $unit = @{ whenTracked = 'Tests/Build-UnitTests.lua'; script = 'Tests/Windows/unit-tests.ps1'; marker = 'PASS: unit-tests-{configuration}'; msbuild = $true; timeoutSeconds = 900 }
@@ -187,7 +193,7 @@ try {
     $results.Add("Windows acceptance scripts: $($windowsChecks.Count). UI coverage is limited to these scripts.")
     Invoke-Check -Name 'generate' -Executable (Join-Path $root 'Vendor/Binaries/Premake/Windows/premake5.exe') -CommandArguments @('--file=Build.lua', 'vs2022') -Directory $root
     foreach ($configuration in $configurations) {
-        Invoke-Check -Name "build-$configuration" -Executable $MSBuild -CommandArguments @('Rubber Engine.sln', "/t:$BuildTarget", '/m', '/nr:false', "/p:Configuration=$configuration", '/p:Platform=x64', '/v:minimal', '/nologo') -Directory $root
+        Invoke-Check -Name "build-$configuration" -Executable $MSBuild -CommandArguments @('Rubber Engine.sln', "/t:$BuildTarget", '/m', '/nr:false', "/p:Configuration=$configuration", '/p:Platform=x64', "/p:VCToolsVersion=$VCToolsVersion", "/p:WindowsTargetPlatformVersion=$WindowsTargetPlatformVersion", '/p:PreferredToolArchitecture=x64', '/v:minimal', '/nologo') -Directory $root
         $regressionDirectory = Join-Path $root "Binaries/windows-x86_64/$configuration/Regression"
         if ($fullSuite) {
             Invoke-Check -Name "regression-all-$configuration" -Executable (Join-Path $regressionDirectory 'Regression.exe') -CommandArguments @() -Directory $regressionDirectory -TimeoutSeconds 240 -ExpectedPattern '(?m)^PASS: '
@@ -199,7 +205,7 @@ try {
             $script = Join-Path $root $check.script
             $binaryRoot = Join-Path $root "Binaries/windows-x86_64/$configuration"
             $arguments = @('-NoProfile', '-File', $script, '-Configuration', $configuration, '-BinaryRoot', $binaryRoot)
-            if ($check.msbuild) { $arguments += @('-MSBuild', $MSBuild) }
+            if ($check.msbuild) { $arguments += @('-MSBuild', $MSBuild, '-VCToolsVersion', $VCToolsVersion, '-WindowsTargetPlatformVersion', $WindowsTargetPlatformVersion) }
             $timeout = if ($check.timeoutSeconds) { [int]$check.timeoutSeconds } else { 240 }
             $marker = $check.marker.Replace('{configuration}', $configuration)
             Invoke-Check -Name "windows-$([System.IO.Path]::GetFileNameWithoutExtension($script))-$configuration" -Executable (Join-Path $PSHOME 'pwsh.exe') -CommandArguments $arguments -Directory $root -TimeoutSeconds $timeout -ExpectedLine $marker
@@ -217,7 +223,7 @@ catch {
 finally {
     if ($report) {
         $results | Set-Content -LiteralPath $report -Encoding utf8
-        @{ status = $validationStatus; phase = $Phase; buildTarget = $BuildTarget; configurations = @($configurations); commit = $head; checks = @($checks.ToArray()); report = $report; failureKind = $(if ($validationStatus -eq 'passed') { $null } else { $failureKind }); failure = $failureMessage } |
+        @{ status = $validationStatus; phase = $Phase; buildTarget = $BuildTarget; configurations = @($configurations); commit = $head; toolchain = $toolchain; checks = @($checks.ToArray()); report = $report; failureKind = $(if ($validationStatus -eq 'passed') { $null } else { $failureKind }); failure = $failureMessage } |
             ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $ReportPath -Encoding utf8
         Write-Host "Validation report: $report"
     }

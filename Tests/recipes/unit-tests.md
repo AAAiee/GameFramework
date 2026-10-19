@@ -70,3 +70,11 @@ completed run with its candidate identity.
 [second-review host blocker](../../docs/validation/issue-29.md#second-review-host-execution-blocker)
 are historical. This recipe adds no doctest dependency, target, CI foundation
 or #27/#30/#31 scope.
+
+Compiler and SDK selection are resolved by `Scripts/Resolve-NativeToolchain.ps1`
+through the chosen MSBuild's v143/x64 property evaluation. Standalone runs resolve
+the effective host defaults; the native adapter instead forwards the exact
+`VCToolsVersion` and `WindowsTargetPlatformVersion` discovered for evidence. Both
+normal builds and the disposable failure probe pin those values as global MSBuild
+properties. The summary records the selected compiler binary and SDK header
+identities; newest-installed compiler enumeration is not validation evidence.
