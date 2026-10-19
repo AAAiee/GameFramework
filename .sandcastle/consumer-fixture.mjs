@@ -459,6 +459,14 @@ for (const boundary of ["validate", "review", "deliver"]) {
   };
   const options = {
     project: { id: "portable-review-consumer", config: {} },
+    diagnostics: async ({ candidate }) => {
+      events.push("diagnose");
+      return {
+        candidate,
+        passed: true,
+        evidence: ["portable-diagnostics.log"],
+      };
+    },
     reviewOutput: {
       correct: async ({ task, candidate, output }) => {
         events.push("correction");
@@ -512,6 +520,7 @@ for (const boundary of ["validate", "review", "deliver"]) {
   );
   assert.deepEqual(events, [
     "implement",
+    "diagnose",
     "validate",
     "review",
     "correction",
