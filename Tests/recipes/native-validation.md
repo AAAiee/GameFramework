@@ -125,8 +125,11 @@ Generic supervision/recovery policy remains fork-owned.
 
 The helper writes
 `<reportsDirectory>/<phase>-<candidate>-<timestamp>/` containing `plan.json`,
-`results.json`, `results.md`, `driver.log`, per-command logs and process
-receipts. The driver without `-ReportPath` defaults to
+`results.json`, `results.md`, `driver.log` and per-command logs. Successful
+process completion also writes `process-receipt.txt`, pointing to ownership
+records under `<reportsDirectory>/processes/`; process errors retain their
+receipt pointer in `driver.log`. Preserve both directories. The driver without
+`-ReportPath` defaults to
 `<prepared>/Binaries/Validation/<timestamp>/`. Choose a unique ignored host-log
 directory for each explicit report path.
 
