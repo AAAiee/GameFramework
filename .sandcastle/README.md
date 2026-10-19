@@ -8,6 +8,9 @@ archive. It is exercised explicitly by tests and the adapter, not by the live qu
 [Durable recovery](RECOVERY.md) describes opt-in attempt budgets, semantic failure
 handling and local handoff reconciliation without automatic publication.
 
+[Native validation](NATIVE.md) describes incremental diagnostics, mandatory
+Debug/Release acceptance and owned process cleanup before prepared restoration.
+
 The original published source revision is
 `e99f832f26dc9d245c019a9ddd19fa5dee792427`. Package provenance is recorded in
 [baseline.json](baseline.json). The separate fork worktree
