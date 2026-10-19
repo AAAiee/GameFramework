@@ -1,0 +1,156 @@
+{
+  "schema": 1,
+  "captured": "2026-10-18T09:02:16.182Z",
+  "kind": "extracted-workflow-scripted-agent-host-check-baseline",
+  "candidate": "578b6dde28b74c752285845732ebdcd582e220ed",
+  "environment": {
+    "node": "v22.13.0",
+    "platform": "win32",
+    "arch": "x64",
+    "measurementModuleSha256": "65594a8a5193787c854dc59f353b5a08f02dbda94830f7f86ffc87a1805b6a1f",
+    "originalSdk": "0.12.0"
+  },
+  "limitations": [
+    "Scripted agent transport with real Git and host Node assertions; no live model or Editor native acceptance.",
+    "Cumulative model usage is unavailable; null is not zero.",
+    "Stage and nested check timings overlap; they are not summed as end-to-end duration.",
+    "Single fixture task and machine observation; no optimization savings claim."
+  ],
+  "report": {
+    "version": 1,
+    "identity": {
+      "project": "fixture-editor-project",
+      "run": "fixture-task-run",
+      "task": "fixture-task",
+      "environment": "fixture-dependencies-v1"
+    },
+    "records": [
+      {
+        "project": "fixture-editor-project",
+        "run": "fixture-task-run",
+        "task": "fixture-task",
+        "environment": "fixture-dependencies-v1",
+        "stage": "implement",
+        "id": 1,
+        "attempt": 1,
+        "retries": null,
+        "started": "2026-10-18T09:02:11.869Z",
+        "durationMs": 1259.9349000000002,
+        "outcome": "succeeded",
+        "tokens": {
+          "totalInput": null,
+          "cachedInput": null,
+          "freshInput": null,
+          "output": null
+        },
+        "unavailable": [
+          "Provider usage was not supplied.",
+          "Retry count was not supplied."
+        ]
+      },
+      {
+        "project": "fixture-editor-project",
+        "run": "fixture-task-run",
+        "task": "fixture-task",
+        "environment": "fixture-dependencies-v1",
+        "stage": "validate",
+        "candidate": "578b6dde28b74c752285845732ebdcd582e220ed",
+        "id": 2,
+        "attempt": 1,
+        "retries": null,
+        "started": "2026-10-18T09:02:13.336Z",
+        "durationMs": 210.85070000000087,
+        "outcome": "succeeded",
+        "tokens": {
+          "totalInput": null,
+          "cachedInput": null,
+          "freshInput": null,
+          "output": null
+        },
+        "unavailable": [
+          "Provider usage was not supplied.",
+          "Retry count was not supplied."
+        ]
+      },
+      {
+        "project": "fixture-editor-project",
+        "run": "fixture-task-run",
+        "task": "fixture-task",
+        "environment": "fixture-dependencies-v1",
+        "stage": "validate",
+        "check": "host-node-value",
+        "candidate": "578b6dde28b74c752285845732ebdcd582e220ed",
+        "id": 3,
+        "attempt": 1,
+        "retries": null,
+        "started": "2026-10-18T09:02:13.343Z",
+        "durationMs": 196.61849999999868,
+        "outcome": "succeeded",
+        "tokens": {
+          "totalInput": null,
+          "cachedInput": null,
+          "freshInput": null,
+          "output": null
+        },
+        "unavailable": [
+          "Provider usage was not supplied.",
+          "Retry count was not supplied."
+        ]
+      },
+      {
+        "project": "fixture-editor-project",
+        "run": "fixture-task-run",
+        "task": "fixture-task",
+        "environment": "fixture-dependencies-v1",
+        "stage": "review",
+        "candidate": "578b6dde28b74c752285845732ebdcd582e220ed",
+        "id": 4,
+        "attempt": 1,
+        "retries": null,
+        "started": "2026-10-18T09:02:13.754Z",
+        "durationMs": 957.2520999999997,
+        "outcome": "succeeded",
+        "tokens": {
+          "totalInput": null,
+          "cachedInput": null,
+          "freshInput": null,
+          "output": null
+        },
+        "unavailable": [
+          "Provider usage was not supplied.",
+          "Retry count was not supplied."
+        ]
+      },
+      {
+        "project": "fixture-editor-project",
+        "run": "fixture-task-run",
+        "task": "fixture-task",
+        "environment": "fixture-dependencies-v1",
+        "stage": "deliver",
+        "candidate": "578b6dde28b74c752285845732ebdcd582e220ed",
+        "id": 5,
+        "attempt": 1,
+        "retries": null,
+        "started": "2026-10-18T09:02:14.922Z",
+        "durationMs": 200.78380000000107,
+        "outcome": "succeeded",
+        "tokens": {
+          "totalInput": null,
+          "cachedInput": null,
+          "freshInput": null,
+          "output": null
+        },
+        "unavailable": [
+          "Provider usage was not supplied.",
+          "Retry count was not supplied."
+        ]
+      }
+    ]
+  },
+  "provenance": {
+    "extractedPipelineBase": "0ba0c0f783d14b1fac74cd182d688020cdc0d8b6",
+    "forkSourceRevision": "6e47d4227ecdd9886f70284d38f3fa6f0e55269f",
+    "preliminaryLocalArchiveSha256": "756d8175d6435becbe8c782abeafd217b4e4e7720afc86244a71118be95b0e2e",
+    "artifactScope": "Locally built instrumentation candidate used only for ticket verification; final consumer pin is updated by integration."
+  }
+}

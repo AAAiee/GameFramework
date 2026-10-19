@@ -5,11 +5,17 @@ param(
     [Parameter(Mandatory = $true)]
     [string] $BinaryRoot,
     [Parameter(Mandatory = $true)]
-    [string] $MSBuild
+    [string] $MSBuild,
+    [string] $VCToolsVersion,
+    [string] $WindowsTargetPlatformVersion
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+# Standalone focused invocations also need private build workers/PDB writes.
+# The owning process boundary terminates these descendants before release.
+$env:MSBUILDDISABLENODEREUSE = '1'
+$env:_MSPDBSRV_ENDPOINT_ = "unit-$([Guid]::NewGuid().ToString('N'))"
 $repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 if (-not [IO.Path]::IsPathRooted($BinaryRoot) -or
     -not [IO.Path]::IsPathRooted($MSBuild)) {
@@ -24,6 +30,9 @@ $project = Join-Path $repository 'Tests/UnitTests.vcxproj'
 if (-not (Test-Path -LiteralPath $project) -or -not (Test-Path -LiteralPath $MSBuild)) {
     throw 'Generate VS2022 projects first and supply the installed MSBuild.exe path'
 }
+$toolchain = & (Join-Path $repository "Scripts/Resolve-NativeToolchain.ps1") -MSBuild $MSBuild -VCToolsVersion $VCToolsVersion -WindowsTargetPlatformVersion $WindowsTargetPlatformVersion
+$VCToolsVersion = $toolchain.toolset
+$WindowsTargetPlatformVersion = $toolchain.sdk
 $outputDirectory = Join-Path $BinaryRoot 'UnitTests'
 $null = New-Item -ItemType Directory -Force -Path $outputDirectory
 $evidence = Join-Path $outputDirectory 'issue-29'
@@ -34,13 +43,14 @@ Set-Content -LiteralPath $summary -Value "Configuration: $Configuration; UTC: $(
 $commit = & git -C $repository rev-parse HEAD
 if ($LASTEXITCODE -ne 0) { throw 'Cannot identify candidate commit' }
 Add-Content -LiteralPath $summary -Value "Candidate: $commit; MSBuild: $MSBuild"
+Add-Content -LiteralPath $summary -Value "Toolchain: $($toolchain | ConvertTo-Json -Depth 4 -Compress)"
 
 function Invoke-Recorded([string] $Name, [string] $Executable, [string] $Arguments, [int] $Timeout) {
     $stdout = Join-Path $evidence "$Name.stdout.log"
     $stderr = Join-Path $evidence "$Name.stderr.log"
     $process = $null
     try {
-        $process = Start-Process -FilePath $Executable -ArgumentList $Arguments `
+        $process = Start-Process -WindowStyle Hidden -FilePath $Executable -ArgumentList $Arguments `
             -WorkingDirectory $repository -RedirectStandardOutput $stdout `
             -RedirectStandardError $stderr -PassThru
         if (-not $process.WaitForExit($Timeout)) { throw "$Name timed out after $Timeout ms" }
@@ -63,7 +73,7 @@ function Invoke-Recorded([string] $Name, [string] $Executable, [string] $Argumen
 }
 
 function Build-Target([string] $Name, [string] $ProjectPath, [string] $Extra = '') {
-    $arguments = '"{0}" /t:Rebuild /m:1 /nr:false /p:Configuration={1} /p:Platform=x64 /v:minimal /nologo {2}' -f $ProjectPath, $Configuration, $Extra
+    $arguments = '"{0}" /t:Rebuild /m:1 /nr:false /p:Configuration={1} /p:Platform=x64 /p:VCToolsVersion={3} /p:WindowsTargetPlatformVersion={4} /p:PreferredToolArchitecture=x64 /v:minimal /nologo {2}' -f $ProjectPath, $Configuration, $Extra, $VCToolsVersion, $WindowsTargetPlatformVersion
     if ((Invoke-Recorded $Name $MSBuild $arguments 180000) -ne 0) {
         throw "$Name failed; see $evidence"
     }
@@ -103,7 +113,20 @@ Run-Passing 'before'
 # Override outputs to isolate the failing binary; never edit the tracked runner.
 $token = [Guid]::NewGuid().ToString('N')
 $probeProject = Join-Path $repository "Tests/UnitTests-probe-$token.vcxproj"
-$probeDirectory = Join-Path $outputDirectory "probe-$token"
+# Keep disposable build outputs near the prepared root. Deep run-owned worktrees
+# otherwise push MSVC FileTracker's Release link-cvtres tlogs beyond normal paths.
+$probeDirectory = [IO.Path]::GetFullPath((Join-Path $repository "Binaries/p-$token"))
+$ownedBinaries = [IO.Path]::GetFullPath((Join-Path $repository 'Binaries'))
+if (-not $probeDirectory.StartsWith($ownedBinaries + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase) -or
+    [IO.Path]::GetFileName($probeDirectory) -ne "p-$token") {
+    throw 'Failure probe output must remain inside this prepared worktree Binaries directory'
+}
+$probeParent = Get-Item -LiteralPath $ownedBinaries
+while ($probeParent.FullName -ine $repository) {
+    if ($probeParent.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Failure probe directory ancestry must not redirect outside its prepared worktree' }
+    $probeParent = $probeParent.Parent
+    if ($null -eq $probeParent) { throw 'Failure probe directory is outside its prepared worktree' }
+}
 $null = New-Item -ItemType Directory -Path $probeDirectory
 try {
     $runner = Join-Path $repository 'Tests/unit/UnitTests.cpp'
@@ -142,6 +165,7 @@ try {
     }
 } finally {
     Remove-Item -LiteralPath $probeProject -Force -ErrorAction SilentlyContinue
+    if ((Get-Item -LiteralPath $probeDirectory).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Failure probe directory changed ownership; preserve it for inspection' }
     Remove-Item -LiteralPath $probeDirectory -Recurse -Force
 }
 

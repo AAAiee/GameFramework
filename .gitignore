@@ -14,6 +14,7 @@ Makefile
 
 # Node tooling (Sandcastle)
 node_modules/
+.sandcastle/context/
 !package.json
 !package-lock.json
 

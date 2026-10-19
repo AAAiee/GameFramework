@@ -1,0 +1,3 @@
+
+# Preserve the recovery snapshot bytes and their original SHA-256 checksums.
+Tests/fixtures/sandcastle-baseline/** -text whitespace=cr-at-eol

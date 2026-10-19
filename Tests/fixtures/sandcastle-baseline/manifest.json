@@ -1,0 +1,65 @@
+{
+  "tests": "32 passed before extraction",
+  "files": [
+    {
+      "path": ".sandcastle/.gitignore",
+      "sha256": "99f4b289f66e752935631a236e4f8a7dc1d4603fd2d74b3d48291b3c6645a06a"
+    },
+    {
+      "path": ".sandcastle/CODING_STANDARDS.md",
+      "sha256": "ae60171121891cc58d7df8c2099b6319eaed6b787816dcdbdd3e402c7346a16e"
+    },
+    {
+      "path": ".sandcastle/implement-prompt.md",
+      "sha256": "34690ec20f9a22ff50ad92e3f9752749a8a66c612378b73932f3a38048aaadfa"
+    },
+    {
+      "path": ".sandcastle/review-prompt.md",
+      "sha256": "9fb847f58e5015f9abfb933675ab7cee30073983d38ad0241dd7a5bd78dca31c"
+    },
+    {
+      "path": ".sandcastle/main.mts",
+      "sha256": "3015e68fb6e187660d87d261f4c1d168fa23b0d69085ce7b657a5a5c33c6e8b9"
+    },
+    {
+      "path": ".sandcastle/WORKFLOW.md",
+      "sha256": "df6099707bf9fac1cf70d81f3e39cddf7645975bad2a56e12e9115bc4e893cff"
+    },
+    {
+      "path": ".sandcastle/host.mjs",
+      "sha256": "10b9446b9589489451309cc13945fc83e871e5b452732493961ecf0ea9f9d3d6"
+    },
+    {
+      "path": ".sandcastle/workflow.mjs",
+      "sha256": "57170087e85f6b8a7a5809c529aec62b7c82d9b833792baba0d5325e8c7214e6"
+    },
+    {
+      "path": ".sandcastle/workflow-config.mjs",
+      "sha256": "5c06c5aad30b3a1f4d63dcee3e34ffe23bb1cc27039e3b13932e9a54e380c752"
+    },
+    {
+      "path": ".sandcastle/workflow.test.mjs",
+      "sha256": "974a864725a60d433bc0ddae21ab41f7109b3142201c28ef5ec824e787f8935b"
+    },
+    {
+      "path": ".sandcastle/github.test.mjs",
+      "sha256": "7e817fb13c23544cb85864030c592fec6fc32c0471a1398179db680b19797971"
+    },
+    {
+      "path": "Scripts/Validate-Windows.ps1",
+      "sha256": "6eec8d20c6eb105d6445afbf3097375ced895cc9524998c86f985967baeaf7c5"
+    },
+    {
+      "path": "Scripts/Validate-Windows.md",
+      "sha256": "f1660026e6b67b53b948e96ef2705360d5d229a58a50d3f4a016daf8daf2b9ea"
+    },
+    {
+      "path": "package.json",
+      "sha256": "a4c5b354349d1dbf49d251d863f9c551040b3f99cc8ddfe429c29421c17bd857"
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "78f8b0e575fdb773ebf88d7f54e4e5dcbc99119d2e8573d848b8851d5b182db4"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+.env
+.idea/
+codex-home/
+logs/
+worktrees/
+state/
