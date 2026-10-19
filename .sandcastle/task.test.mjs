@@ -857,7 +857,11 @@ test(
       const prepared = await prepare(context);
       processes = createOwnedProcessRunner({
         directory: join(context.directory, "owned-processes"),
-        windowsPowerShell: execFileSync("where.exe", ["pwsh.exe"], {
+        windowsPowerShell: execFileSync("pwsh.exe", [
+          "-NoProfile",
+          "-Command",
+          "(Get-Process -Id $PID).Path",
+        ], {
           encoding: "utf8",
           windowsHide: true,
         })
