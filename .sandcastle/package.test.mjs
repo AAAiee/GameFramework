@@ -15,7 +15,7 @@ import { tmpdir } from "node:os";
 import { basename, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-test("the pinned archive isolates independent consumers A then B without Editor or credentials", (t) => {
+test("the pinned archive isolates consumers and preserves exhausted budgets across fresh processes", (t) => {
   const temporary = mkdtempSync(join(tmpdir(), "sandcastle-independent-"));
   t.after(() => {
     const path = realpathSync(temporary);
@@ -81,20 +81,57 @@ test("the pinned archive isolates independent consumers A then B without Editor 
     }
   };
   inspect(installed);
-  for (const name of ["workflow", "workflow-integrations", "workflow-runtime"])
+  for (const name of [
+    "workflow",
+    "workflow-integrations",
+    "workflow-runtime",
+    "workflow-measurements",
+    "workflow-process",
+    "reproducible-build",
+  ])
     assert.ok(readFileSync(join(installed, `docs/${name}.md`)).length > 0);
-  copyFileSync(
-    new URL("./consumer-fixture.mjs", import.meta.url),
-    join(temporary, "verify.mjs"),
+  const installedManifest = JSON.parse(
+    readFileSync(join(installed, "package.json")),
   );
+  for (const entry of [
+    "./workflow",
+    "./workflow/integrations",
+    "./workflow/runtime",
+    "./workflow/measurements",
+    "./workflow/process",
+  ]) {
+    const exported = installedManifest.exports[entry];
+    for (const file of [
+      exported.import,
+      exported.types,
+      exported.import + ".map",
+    ])
+      assert.ok(
+        readFileSync(join(installed, file)).length > 0,
+        `${entry}: ${file}`,
+      );
+  }
   const environment = { ...process.env };
   delete environment.NODE_TEST_CONTEXT;
-  const output = execFileSync(process.execPath, ["verify.mjs"], {
-    cwd: temporary,
-    env: environment,
-    encoding: "utf8",
-    windowsHide: true,
-    timeout: 30000,
-  });
-  assert.match(output, /PASS: independent packaged A then B/);
+  for (const [fixture, expected] of [
+    ["consumer-fixture.mjs", /PASS: independent packaged A then B/],
+    [
+      "consumer-budget-fixture.mjs",
+      /PASS: installed consumer preserves all exhausted budgets/,
+    ],
+  ]) {
+    copyFileSync(
+      new URL(`./${fixture}`, import.meta.url),
+      join(temporary, fixture),
+    );
+    const output = execFileSync(process.execPath, [fixture], {
+      cwd: temporary,
+      env: environment,
+      encoding: "utf8",
+      windowsHide: true,
+      timeout: 30000,
+    });
+    assert.match(output, expected);
+    t.diagnostic(output.trim());
+  }
 });
