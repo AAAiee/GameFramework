@@ -19,7 +19,8 @@ namespace Rubber {
      * Requires a live Application, event manager, logger and current GL context.
      * Destroy the scene before those facilities. Other scene systems are dormant.
      * WindowSystem uses a shared subscription name, so simultaneous scenes do
-     * not have independent viewport delivery.
+     * not have independent viewport delivery. createWithoutSystems installs
+     * nothing, so no Application or GL context is required for registry work.
      */
 	class Scene {  
 	public:
@@ -47,7 +48,8 @@ namespace Rubber {
 	    void onSystemsUpdate(float ts);
 
 	private:
-		Scene();
+		/** Installs WindowSystem then RendererSystem when installSystems is true. */
+		Scene(bool installSystems);
 		/** Runs before registry insertion; only explicitly specialized types are supported.
          * Primary definitions live in Scene.cpp; unsupported types instantiated
          * elsewhere may fail at link time rather than produce the dependent assertion.
@@ -63,6 +65,11 @@ namespace Rubber {
 	public:  
         /** Returns shared ownership of a scene with its systems already initialized. */
 		static Ref<Scene> create();  
+        /** Returns shared ownership of a scene with no systems installed; registry
+         *  and component hooks only. Updates have nothing to run; the shutdown
+         *  loop over the empty system list is still valid.
+         */
+		static Ref<Scene> createWithoutSystems();
 
 	private:  
 		entt::registry m_Registry;

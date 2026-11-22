@@ -39,8 +39,8 @@ namespace Rubber {
 		m_ViewPortDimension = dimensions;
 	}
 
-	Scene::Scene() {
-		systemsInit();
+	Scene::Scene(bool installSystems) {
+		if (installSystems) systemsInit();
 	}
 
 	Scene::~Scene() {
@@ -82,7 +82,12 @@ namespace Rubber {
 
 	Ref<Scene> Scene::create()
 	{
-		return Ref<Scene>(new Scene());
+		return Ref<Scene>(new Scene(true));
+	}
+
+	Ref<Scene> Scene::createWithoutSystems()
+	{
+		return Ref<Scene>(new Scene(false));
 	}
 
 
@@ -158,7 +163,9 @@ namespace Rubber {
 
 	void Scene::publishViewportResize()
 	{
-		Ref<EventManager> eventManager = Application::getEventManager();
+		// The event manager is a process singleton; an Application, when present,
+		// already holds this same instance (Application.cpp:52).
+		Ref<EventManager> eventManager = EventManager::create();
 		// push an viewport resize event whenever a new camera component is added(to be handled by the WindowSystem)
 		eventManager->enqueue<ViewPortResizeEvent>({ (uint32_t)m_ViewPortDimension.x, (uint32_t)m_ViewPortDimension.y });
 	}
