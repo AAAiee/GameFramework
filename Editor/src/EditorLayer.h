@@ -45,7 +45,11 @@ namespace Rubber {
         void initializeSceneViewport();
 		void newScene();
 		void openScene();
+        /** Dialog-free open; resets the scene and loads filepath's YAML. */
+        void openSceneFrom(const std::filesystem::path& filepath);
 		void saveScene();
+        /** Dialog-free save; writes the active scene's YAML to filepath. */
+        void saveSceneTo(const std::filesystem::path& filepath);
 		bool shortcutCallBack(const KeyPressedEvent& e);
 
 
