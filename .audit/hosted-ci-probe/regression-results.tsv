@@ -1,0 +1,8 @@
+ts	stage	name	exit	pass_marker	note
+2026-11-22T12:39:48.3036249Z	regression	regression-build-Debug	0		msbuild D:\a\GameFramework\GameFramework\Tests\Regression.vcxproj Debug
+2026-11-22T12:39:48.3393342Z	regression	regression-camera-inverse	0	PASS: camera-inverse	camera-inverse
+2026-11-22T12:39:48.3525407Z	regression	regression-layer-partition	0	PASS: layer-partition	layer-partition
+2026-11-22T12:39:48.3646321Z	regression	regression-typed-events	0	PASS: typed-events	typed-events
+2026-11-22T12:39:48.3764355Z	regression	regression-event-names	0	PASS: event-names	event-names
+2026-11-22T12:39:48.4042714Z	regression	regression-font-atlas	0	PASS: font-atlas	font-atlas
+2026-11-22T12:39:48.5219458Z	regression	regression-gl-buffers	-2147483645		gl-buffers

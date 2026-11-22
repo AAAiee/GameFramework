@@ -95,6 +95,10 @@ try {
     }
     Write-Host "LAYERING_STEP1_PASS identity camera math -> UnitTests exit $cameraExit (nonzero as expected)"
 
+    # Restore camera math before the editor step. Leaving the identity patch
+    # in place would fail UnitTests for camera reasons, not editor independence.
+    git checkout -- $cameraPath
+
     # ---- Step 2: the editor layer must not be load-bearing ------------------
     $editorOriginal = Get-Content -Raw $editorPath
     $saveNeedle = 'serializer.serialize(filepath);'

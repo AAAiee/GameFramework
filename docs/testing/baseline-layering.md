@@ -2,10 +2,11 @@
 
 Why the test suite is split into a headless doctest executable and two
 display-host smokes, what each layer covers, and what it deliberately does not.
-The audit trail behind this split (module maps, hosted-runner experiments, the
-selector classification) lives in `.audit/` in the working tree; the
-F01-F14 oracle table that prevents duplication is in
-[Tests/README.md](../../Tests/README.md).
+The audit trail behind this split lives in `.audit/` in this repository:
+[classification.md](../../.audit/classification.md),
+[experiments.md](../../.audit/experiments.md),
+and the `map-*.md` module maps. The F01-F14 oracle table that prevents
+duplication is also summarized in [Tests/README.md](../../Tests/README.md).
 
 ## Layers
 
@@ -16,7 +17,8 @@ F01-F14 oracle table that prevents duplication is in
 | `EditorSmoke` | console app, links `Engine`, constructs `Application` | display/GL host only (`Tests/Windows/run-smokes.ps1`) | The command-layer New/entity/Transform/Save/Load path writes a nonempty `.rubber` and deserializes it back; oracle is the exit code |
 
 Hosted `windows-latest` has no WGL/OpenGL driver (measured:
-`.audit/hosted-ci-probe/gl-buffers.stdout.log`, run
+[regression-results.tsv](../../.audit/hosted-ci-probe/regression-results.tsv),
+`gl-buffers` exit `-2147483645`, run
 [45023232349](https://github.com/AAAiee/GameFramework/actions/runs/45023232349)).
 Anything that constructs `Application` dies there, so hosted CI runs UnitTests
 and only compiles the smokes.
