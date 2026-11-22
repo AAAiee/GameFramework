@@ -8,6 +8,7 @@
 #include "Rubber/Event/KeyEvent.h"
 #include "Rubber/Event/EventManager.h"
 
+#include <functional>
 #include <vector>
 
 TEST_CASE("eventmanager-immediate-typed-dispatch") {
@@ -20,11 +21,13 @@ TEST_CASE("eventmanager-immediate-typed-dispatch") {
     // involved. It reports the type match and takes the callback's verdict.
     int seenKeyCode = 0;
     int seenRepeatCount = 0;
-    bool matched = eventManager->dispatchEvent(pressed, [&](const Rubber::KeyPressedEvent& e) {
-        seenKeyCode = e.getKeyCode();
-        seenRepeatCount = e.getRepeatCount();
-        return true;
-    });
+    const std::function<bool(const Rubber::KeyPressedEvent&)> consume =
+        [&](const Rubber::KeyPressedEvent& e) {
+            seenKeyCode = e.getKeyCode();
+            seenRepeatCount = e.getRepeatCount();
+            return true;
+        };
+    bool matched = eventManager->dispatchEvent<Rubber::KeyPressedEvent>(pressed, consume);
     CHECK(matched);
     CHECK(pressed.isHandled());
     CHECK(seenKeyCode == 65);
@@ -32,9 +35,9 @@ TEST_CASE("eventmanager-immediate-typed-dispatch") {
 
     // A returning-false callback replaces even an already-set handled status.
     pressed.setHandleStatus(false);
-    matched = eventManager->dispatchEvent(pressed, [](const Rubber::KeyPressedEvent& e) {
-        return false;
-    });
+    const std::function<bool(const Rubber::KeyPressedEvent&)> clearHandled =
+        [](const Rubber::KeyPressedEvent&) { return false; };
+    matched = eventManager->dispatchEvent<Rubber::KeyPressedEvent>(pressed, clearHandled);
     CHECK(matched);
     CHECK(!pressed.isHandled());
 }

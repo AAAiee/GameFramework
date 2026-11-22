@@ -58,11 +58,24 @@ function Invoke-Logged([string] $Name, [string] $File, [string] $Arguments, [str
     return $process.ExitCode
 }
 
+function Show-LogTail([string] $Name) {
+    foreach ($kind in @('stdout', 'stderr')) {
+        $path = Join-Path $evidence "$Name.$kind.log"
+        if (Test-Path -LiteralPath $path) {
+            Write-Host "----- $Name $kind -----"
+            Get-Content -LiteralPath $path -Tail 80
+        }
+    }
+}
+
 function Build-Project([string] $Name, [string] $Project, [string] $Configuration) {
     $arguments = '"{0}" /t:Rebuild /m /nr:false /p:Configuration={1} /p:Platform=x64 /v:minimal /nologo' -f $Project, $Configuration
     $code = Invoke-Logged $Name $msbuild $arguments $repository 600000
     Write-Row $Name $code '' "msbuild $Project $Configuration"
-    if ($code -ne 0) { throw "$Name failed" }
+    if ($code -ne 0) {
+        Show-LogTail $Name
+        throw "$Name failed"
+    }
 }
 
 if ($Stage -eq 'unit' -or $Stage -eq 'all') {
@@ -71,7 +84,10 @@ if ($Stage -eq 'unit' -or $Stage -eq 'all') {
         $exe = Join-Path $repository "Binaries\windows-x86_64\$configuration\UnitTests\UnitTests.exe"
         $code = Invoke-Logged "unittests-run-$configuration" $exe '--no-colors --no-breaks' (Split-Path $exe -Parent) 60000
         Write-Row "unittests-run-$configuration" $code '' 'UnitTests.exe --no-colors --no-breaks'
-        if ($code -ne 0) { throw "UnitTests $configuration failed" }
+        if ($code -ne 0) {
+            Show-LogTail "unittests-run-$configuration"
+            throw "UnitTests $configuration failed"
+        }
     }
 }
 

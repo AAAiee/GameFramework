@@ -7,6 +7,7 @@
 #include "Rubber/Layer/Layer.h"
 #include "Rubber/Layer/LayerStack.h"
 
+#include <initializer_list>
 #include <string>
 #include <vector>
 
@@ -36,7 +37,7 @@ namespace {
     }
 
     std::vector<std::string> names(std::initializer_list<const char*> values) {
-        return std::vector<std::string>(values);
+        return std::vector<std::string>(values.begin(), values.end());
     }
 
 } // namespace

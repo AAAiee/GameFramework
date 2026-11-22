@@ -13,3 +13,5 @@ ts	phase	decision	why	evidence	result
 2026-11-22T12:51:00Z	map	renderer map folded; Camera unit, Renderer2D/FBO stay GL, BufferLayout not in this baseline	user-facing features not unclaimed headless internals	.audit/map-renderer.md	VERIFIED
 2026-11-22T12:55:00Z	land	implementer four commits 3b64c3c..39933de on test/rb-baseline-layering	sequence-verifiable units; no Application in UnitTests sources	git log origin/Editor..HEAD	open
 2026-11-22T13:00:00Z	fix	restore SceneCamera.cpp before prove-layering step 2	step 2 rebuilt UnitTests with identity camera still patched, so editor independence could not pass	Tests/Windows/prove-layering.ps1	open
+2026-11-22T14:10:00Z	review	independent review PASS at db9a3de, flags 1-8 false	another family than glm-5.3 implementer	t3-thread rb-review-baseline-001 grok-4.6 xhigh	PASS
+2026-11-22T14:20:00Z	fix	MSVC UnitTests compile: named std::function plus dispatchEvent<T>, iterator vector<string> helper, dump probe log tails	GHA unittests and layering-proof failed at C2672 and C2440 before any test ran	run 45026313071 jobs 137219999716 137219999953 EventManagerTests.cpp:23 LayerStackTests.cpp:39	open
