@@ -1,0 +1,5 @@
+ts	stage	name	exit	pass_marker	note
+2026-11-22T12:38:06.4076208Z	unit	unittests-build-Debug	0		msbuild D:\a\GameFramework\GameFramework\Tests\UnitTests.vcxproj Debug
+2026-11-22T12:38:06.4301927Z	unit	unittests-run-Debug	0		UnitTests.exe --no-colors --no-breaks
+2026-11-22T12:38:13.8446042Z	unit	unittests-build-Release	0		msbuild D:\a\GameFramework\GameFramework\Tests\UnitTests.vcxproj Release
+2026-11-22T12:38:13.8560096Z	unit	unittests-run-Release	0		UnitTests.exe --no-colors --no-breaks

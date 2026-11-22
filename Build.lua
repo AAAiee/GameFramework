@@ -27,3 +27,5 @@ group "Tests"
    include "Tests/Build-Regression.lua"
    filter {}
    include "Tests/Build-UnitTests.lua"
+   filter {}
+   include "Tests/Build-Smokes.lua"

@@ -40,9 +40,14 @@ function Invoke-Recorded([string] $Name, [string] $Executable, [string] $Argumen
     $stderr = Join-Path $evidence "$Name.stderr.log"
     $process = $null
     try {
+        # -NoNewWindow keeps redirected builds and runs from flashing an empty
+        # console window on the desktop for every invocation.
         $process = Start-Process -FilePath $Executable -ArgumentList $Arguments `
             -WorkingDirectory $repository -RedirectStandardOutput $stdout `
-            -RedirectStandardError $stderr -PassThru
+            -RedirectStandardError $stderr -PassThru -NoNewWindow
+        # Windows PowerShell 5.1 reports an empty ExitCode unless the process
+        # handle is opened before waiting; PowerShell 7 does not need this.
+        $null = $process.Handle
         if (-not $process.WaitForExit($Timeout)) { throw "$Name timed out after $Timeout ms" }
         $process.WaitForExit()
         $code = $process.ExitCode
@@ -100,10 +105,11 @@ Run-Passing 'before'
 
 # Compile a disposable copy using the generated project's exact settings. Keep it
 # beside the original project so all relative include/import/source paths agree.
-# Override outputs to isolate the failing binary; never edit the tracked runner.
+# Rename the target to isolate the failing binary; never edit the tracked runner.
 $token = [Guid]::NewGuid().ToString('N')
 $probeProject = Join-Path $repository "Tests/UnitTests-probe-$token.vcxproj"
 $probeDirectory = Join-Path $outputDirectory "probe-$token"
+$probeExe = Join-Path $outputDirectory 'UnitTestsFailureProbe.exe'
 $null = New-Item -ItemType Directory -Path $probeDirectory
 try {
     $runner = Join-Path $repository 'Tests/unit/UnitTests.cpp'
@@ -121,9 +127,10 @@ try {
     if ($items.Count -ne 1) { throw 'Generated project must compile the runner exactly once' }
     $items[0].SetAttribute('Include', $probeSource)
     $probe.Save($probeProject)
-    $extra = '/p:OutDir="{0}/" /p:IntDir="{0}/obj/" /p:TargetName=UnitTestsFailureProbe' -f $probeDirectory
+    # Rename only the target. Overriding OutDir/IntDir would also propagate to
+    # the referenced Engine/vendor projects and break their library paths.
+    $extra = '/p:TargetName=UnitTestsFailureProbe'
     Build-Target 'build-failure-probe' $probeProject $extra
-    $probeExe = Join-Path $probeDirectory 'UnitTestsFailureProbe.exe'
     $arguments = '--test-case=camera-inverse --no-colors --no-breaks'
     $code = Invoke-Recorded 'failure-probe' $probeExe $arguments 30000
     $failureText = Get-Content -LiteralPath (Join-Path $evidence 'failure-probe.stdout.log') -Raw
@@ -143,6 +150,7 @@ try {
 } finally {
     Remove-Item -LiteralPath $probeProject -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $probeDirectory -Recurse -Force
+    Remove-Item -LiteralPath $probeExe -Force -ErrorAction SilentlyContinue
 }
 
 # Rebuild and rerun the checked-in runner after removing all failing probe code.

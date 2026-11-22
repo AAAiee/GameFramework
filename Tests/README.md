@@ -1,10 +1,25 @@
 # First-party regression checks
 
+## How to run the baseline suite
+
+- `UnitTests` (doctest, links `Engine`, no window): generate projects with
+  `Vendor\Binaries\Premake\Windows\premake5.exe --file=Build.lua vs2022`, build
+  `Tests\UnitTests.vcxproj` (this builds `Engine` too), and run
+  `Binaries\windows-x86_64\<config>\UnitTests\UnitTests.exe`. CI runs it on
+  hosted `windows-latest` for Debug and Release.
+- `EngineSmoke` and `EditorSmoke` (console apps that construct the real
+  `Application`, so they need a display/GL host): on such a host run
+  `Tests\Windows\run-smokes.ps1`, which builds and runs both and fails on any
+  nonzero exit. Hosted CI only compiles them.
+- What each layer covers, the CI matrix, and the known gaps are explained in
+  [docs/testing/baseline-layering.md](../docs/testing/baseline-layering.md).
+
 ## Headless UnitTests (issue #29)
 
-`UnitTests` is a separate C++20 console executable using vendored doctest v2.4.12.
-Its only translation units are `unit/UnitTests.cpp` and the existing
-`src/CameraInverseCheck.cpp`. The registered `camera-inverse` case calls that
+`UnitTests` is a separate C++20 console executable using vendored doctest v2.4.12,
+linking the Engine static library. Its translation units are the `unit/*.cpp`
+doctest files and the existing `src/CameraInverseCheck.cpp`. The registered
+`camera-inverse` case calls that
 shared behavior check through `CHECK_NOTHROW`; the check body and Regression's
 selectors are unchanged. Its projection-preservation, retained snapshot and
 identity-tolerance checks throw in every configuration. See
@@ -13,9 +28,10 @@ contract and [doctest provenance](../Vendor/doctest/README.md) for the pin,
 checksums, license and intentional update procedure.
 
 The doctest implementation/main is compiled exactly once in `unit/UnitTests.cpp`,
-outside Regression's `src/**.cpp` wildcard. UnitTests uses Camera/GLM headers and
-does not link Engine, OpenGL, windowing or editor libraries, or copy editor
-assets. Both translation units use the same static MSVC CRT: `/MTd` in x64 Debug
+outside Regression's `src/**.cpp` wildcard. UnitTests links the Engine static
+library but never constructs `Application`, calls `glfwInit`, or creates a
+window; it compiles no editor sources and copies no editor assets. All
+translation units use the same static MSVC CRT: `/MTd` in x64 Debug
 and `/MT` in x64 Release (`staticruntime "on"` with matching `runtime`). Doctest
 checks remain active with `NDEBUG`; `DOCTEST_CONFIG_DISABLE` is rejected by the
 runner. No C `assert` is used for acceptance.

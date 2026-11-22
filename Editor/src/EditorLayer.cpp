@@ -207,23 +207,33 @@ namespace Rubber {
 	{
 		std::wstring filepath = fileDialog::openFile(L"Rubber Scene (*.rubber)\0*.rubber\0\0");
 		if (!filepath.empty()) {
-			m_ActiveScene.reset();
-			m_ActiveScene = Scene::create();
-			m_SceneHierachyPanel.setContext(m_ActiveScene);
-			initializeSceneViewport();
-
-			SceneSerializer serializer(m_ActiveScene);
-			serializer.deserialize(filepath);
+			openSceneFrom(filepath);
 		}
+	}
+
+	void EditorLayer::openSceneFrom(const std::filesystem::path& filepath)
+	{
+		m_ActiveScene.reset();
+		m_ActiveScene = Scene::create();
+		m_SceneHierachyPanel.setContext(m_ActiveScene);
+		initializeSceneViewport();
+
+		SceneSerializer serializer(m_ActiveScene);
+		serializer.deserialize(filepath);
 	}
 
 	void EditorLayer::saveScene()
 	{
 		std::wstring filepath = fileDialog::saveFile(L"Rubber Scene (*.rubber)\0*.rubber\0\0");
 		if (!filepath.empty()) {
-			SceneSerializer serializer(m_ActiveScene);
-			serializer.serialize(filepath);
+			saveSceneTo(filepath);
 		}
+	}
+
+	void EditorLayer::saveSceneTo(const std::filesystem::path& filepath)
+	{
+		SceneSerializer serializer(m_ActiveScene);
+		serializer.serialize(filepath);
 	}
 
 	bool EditorLayer::shortcutCallBack(const KeyPressedEvent& e)
