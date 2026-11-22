@@ -6,9 +6,6 @@
   "directories": {
     "doc": "docs"
   },
-  "scripts": {
-    "sandcastle": "npx tsx .sandcastle/main.mts"
-  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/AAAiee/GameFramework.git"
@@ -19,8 +16,5 @@
   "bugs": {
     "url": "https://github.com/AAAiee/GameFramework/issues"
   },
-  "homepage": "https://github.com/AAAiee/GameFramework#readme",
-  "devDependencies": {
-    "@ai-hero/sandcastle": "^0.12.0"
-  }
+  "homepage": "https://github.com/AAAiee/GameFramework#readme"
 }

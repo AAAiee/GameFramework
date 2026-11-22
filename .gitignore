@@ -12,7 +12,7 @@ Makefile
 
 *.json
 
-# Node tooling (Sandcastle)
+# Node tooling
 node_modules/
 !package.json
 !package-lock.json

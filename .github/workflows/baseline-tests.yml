@@ -2,7 +2,7 @@ name: baseline-tests
 
 on:
   push:
-    branches: [test/rb-baseline-layering]
+    branches: [Editor]
   pull_request:
     branches: [Editor]
   workflow_dispatch:
