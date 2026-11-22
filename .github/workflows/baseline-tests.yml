@@ -16,7 +16,7 @@ jobs:
         with:
           submodules: true
       - uses: microsoft/setup-msbuild@v2
-      - name: Probe UnitTests Debug and Release
+      - name: UnitTests Debug and Release
         shell: pwsh
         run: ./Tests/Windows/hosted-ci-probe.ps1 -Stage unit
       - uses: actions/upload-artifact@v4
@@ -25,20 +25,43 @@ jobs:
           name: unittests-probe
           path: Binaries/hosted-ci-probe/
 
-  regression-selectors:
+  smokes-compile:
     runs-on: windows-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: true
       - uses: microsoft/setup-msbuild@v2
-      - name: Probe Regression selectors
+      - name: Generate projects
         shell: pwsh
-        run: ./Tests/Windows/hosted-ci-probe.ps1 -Stage regression
-        continue-on-error: true
+        run: '& .\Vendor\Binaries\Premake\Windows\premake5.exe --file=Build.lua vs2022'
+      # Compile only. Both smokes construct the real Application, and hosted
+      # windows-latest has no WGL/OpenGL driver, so they never run here.
+      - name: Compile EngineSmoke and EditorSmoke
+        shell: pwsh
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+          if (-not $msbuild) { throw 'MSBuild not found' }
+          foreach ($project in @('EngineSmoke', 'EditorSmoke')) {
+            & $msbuild "Tests\$project.vcxproj" /t:Rebuild /m /p:Configuration=Debug /p:Platform=x64 /v:minimal /nologo
+            if ($LASTEXITCODE -ne 0) { throw "$project compile failed" }
+          }
+
+  layering-proof:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: microsoft/setup-msbuild@v2
+      - name: Prove UnitTests covers the engine and ignores the editor layer
+        shell: pwsh
+        run: ./Tests/Windows/prove-layering.ps1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: regression-probe
-          path: Binaries/hosted-ci-probe/
+          name: layering-proof
+          path: Binaries/layering-proof/
