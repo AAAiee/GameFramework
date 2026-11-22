@@ -1,0 +1,44 @@
+name: baseline-tests
+
+on:
+  push:
+    branches: [test/rb-baseline-layering]
+  pull_request:
+    branches: [Editor]
+  workflow_dispatch:
+
+jobs:
+  unittests:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: microsoft/setup-msbuild@v2
+      - name: Probe UnitTests Debug and Release
+        shell: pwsh
+        run: ./Tests/Windows/hosted-ci-probe.ps1 -Stage unit
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unittests-probe
+          path: Binaries/hosted-ci-probe/
+
+  regression-selectors:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: microsoft/setup-msbuild@v2
+      - name: Probe Regression selectors
+        shell: pwsh
+        run: ./Tests/Windows/hosted-ci-probe.ps1 -Stage regression
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: regression-probe
+          path: Binaries/hosted-ci-probe/
