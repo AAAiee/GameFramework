@@ -40,9 +40,11 @@ function Invoke-Recorded([string] $Name, [string] $Executable, [string] $Argumen
     $stderr = Join-Path $evidence "$Name.stderr.log"
     $process = $null
     try {
+        # -NoNewWindow keeps redirected builds and runs from flashing an empty
+        # console window on the desktop for every invocation.
         $process = Start-Process -FilePath $Executable -ArgumentList $Arguments `
             -WorkingDirectory $repository -RedirectStandardOutput $stdout `
-            -RedirectStandardError $stderr -PassThru
+            -RedirectStandardError $stderr -PassThru -NoNewWindow
         # Windows PowerShell 5.1 reports an empty ExitCode unless the process
         # handle is opened before waiting; PowerShell 7 does not need this.
         $null = $process.Handle
