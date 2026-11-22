@@ -35,7 +35,10 @@ int main() {
         serializer.serialize(file);
     }
 
-    // Load: deserialize into a fresh scene (EditorLayer::openSceneFrom body).
+    // Load: replace the scene, then deserialize into the fresh one. EditorLayer's
+    // newScene/openSceneFrom also reset the active scene first; only one Scene may
+    // own the shared "Viewport Resize" subscription at a time.
+    scene.reset();
     auto loaded = Rubber::Scene::create();
     bool deserialized = false;
     {
@@ -49,7 +52,6 @@ int main() {
         return 1;
     }
 
-    scene.reset();
     loaded.reset();
     return 0;
 }
