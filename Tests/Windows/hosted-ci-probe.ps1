@@ -50,6 +50,9 @@ function Invoke-Logged([string] $Name, [string] $File, [string] $Arguments, [str
     $process = Start-Process -FilePath $File -ArgumentList $Arguments `
         -WorkingDirectory $WorkDir -RedirectStandardOutput $stdout `
         -RedirectStandardError $stderr -PassThru -NoNewWindow
+    # Windows PowerShell 5.1 reports an empty ExitCode unless the process
+    # handle is opened before waiting; PowerShell 7 does not need this.
+    $null = $process.Handle
     if (-not $process.WaitForExit($TimeoutMs)) {
         & taskkill.exe /PID $process.Id /T /F | Out-Null
         throw "$Name timed out after $TimeoutMs ms"

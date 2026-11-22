@@ -58,6 +58,9 @@ function Invoke-UnitTests([string] $Label) {
     $process = Start-Process -FilePath $exe -ArgumentList '--no-colors', '--no-breaks' `
         -WorkingDirectory (Split-Path $exe -Parent) -RedirectStandardOutput $stdout `
         -RedirectStandardError $stderr -PassThru -NoNewWindow
+    # Windows PowerShell 5.1 reports an empty ExitCode unless the process
+    # handle is opened before waiting; PowerShell 7 does not need this.
+    $null = $process.Handle
     if (-not $process.WaitForExit(120000)) {
         & taskkill.exe /PID $process.Id /T /F | Out-Null
         throw "UnitTests $Label timed out"
