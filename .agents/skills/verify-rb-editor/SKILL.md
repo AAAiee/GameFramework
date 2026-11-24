@@ -27,7 +27,7 @@ pwsh -NoProfile -File .agents/skills/verify-rb-editor/scripts/rb-verify.ps1 doct
 
 Each must sit next to `assets\shader\CommonShader.glsl` and `assets\fonts\OpenSans\static\OpenSans-Regular.ttf`. Run those executables from their own output directories so relative `assets/` paths resolve.
 
-An unattended feature drive is ready when `doctor` prints `OK regression=` for that configuration. Each `drive` invocation starts a fresh `Regression.exe`, waits for `PASS: <selector>`, and exits.
+An unattended feature drive is ready when `doctor` prints `OK regression=` for that configuration. Each selector starts a fresh `Regression.exe`, waits for `PASS: <selector>`, and exits.
 
 To show the live editor on the interactive desktop, copy the Editor output directory into an isolated run folder and start `Editor.exe` from there.
 
@@ -65,39 +65,42 @@ Refuse to drive when doctor prints `FAIL`. Do not attach to an `Editor.exe` whos
 Unattended proof uses `Regression.exe` through `rb-verify.ps1 drive`. The first-party fixtures compile production `EditorLayer`, `SceneHierachyPanel`, and `FontManager`, then inject real ImGui mouse, key, and text events or drive the native Win32 file dialogs. They run on the private desktop. They are the existing driver. ImGui does not expose UI Automation. There is no click API on standalone `Editor.exe`.
 
 ```powershell
-pwsh -NoProfile -File .agents/skills/verify-rb-editor/scripts/rb-verify.ps1 drive scene-hierarchy
-pwsh -NoProfile -File .agents/skills/verify-rb-editor/scripts/rb-verify.ps1 drive inspector
-pwsh -NoProfile -File .agents/skills/verify-rb-editor/scripts/rb-verify.ps1 drive scene-files
-pwsh -NoProfile -File .agents/skills/verify-rb-editor/scripts/rb-verify.ps1 drive viewport
-pwsh -NoProfile -File .agents/skills/verify-rb-editor/scripts/rb-verify.ps1 drive window-lifecycle
-pwsh -NoProfile -File .agents/skills/verify-rb-editor/scripts/rb-verify.ps1 drive editor-ui
-pwsh -NoProfile -File .agents/skills/verify-rb-editor/scripts/rb-verify.ps1 drive editor-ui-escape
+pwsh -NoProfile -File .agents/skills/verify-rb-editor/scripts/rb-verify.ps1 drive ui-hierarchy
+pwsh -NoProfile -File .agents/skills/verify-rb-editor/scripts/rb-verify.ps1 drive ui-inspector
+pwsh -NoProfile -File .agents/skills/verify-rb-editor/scripts/rb-verify.ps1 drive ui-files
+pwsh -NoProfile -File .agents/skills/verify-rb-editor/scripts/rb-verify.ps1 drive ui-viewport
+pwsh -NoProfile -File .agents/skills/verify-rb-editor/scripts/rb-verify.ps1 drive ui-exit
+pwsh -NoProfile -File .agents/skills/verify-rb-editor/scripts/rb-verify.ps1 drive ui-escape
 ```
+
+`drive editor-ui` runs `ui-hierarchy`, `ui-inspector`, `ui-files`, and `ui-viewport` in that order, one process each. `ui-exit` and `ui-escape` close the editor, so run each as its own drive. A full pass is `drive editor-ui`, then `drive ui-exit`, then `drive ui-escape`.
 
 `rb-verify.ps1` owns selector names, timeouts, and `PASS:` markers. One Regression drive at a time. A second `drive` while `.drive.lock` holds a live PID is refused.
 
-Read `features/` before a run and drive every entry point that feature file lists. A pass through one convenient selector does not cover a listed entry point you skipped. If a listed entry point cannot be reached, the editor-ui driver is the missing piece. Do not report `verified-unreachable` for a catalogued Editor control. Do not substitute `Scene::createEntity` or `saveSceneTo` for a menu the map still claims. `drive editor-ui` clicks every catalogued control: File New/Open/Save As/Exit, Create Entity, Delete Entity, Transform X/Y/Z, Sprite Color Picker, Remove Component, Camera Primary/IsFixedRatio/Projection/Size/FOVY, Visibility isVisible, the ViewPort splitter, and Ctrl+N/O/S. `drive editor-ui-escape` posts Escape.
-
-Stable ImGui names in production source:
-
-- Windows: `DockSpace Demo`, `Scene Hierarchy`, `Property Channel`, `ViewPort`, `Setting`
-- File menu: `New` (`Ctrl+N`), `Open...` (`Ctrl+O`), `Save As...`, `Exit`
-- Hierarchy: `Create Entity` (right-click blank space), `Delete Entity` (right-click a row)
-- Inspector: `Tag` header, input `##Tag`, button `Add Component`, popup items `Camera`, `Sprite Renderer`, `Transform`, `Visibility`, `Remove Component`
-- Camera: checkboxes `Primary`, `IsFixedRatio`; combo `Projection` with `Orthographic` and `Perspective`; drags `Size`, `NearClip`, `FarClip`, `FOVY`
-- Visibility checkbox: `isVisible`
-- Sprite: `Color Picker`
-- Stats in `Setting`: `DrawCount`, `QuadCount`, `IndexCount`, `VertexCount`, `Frame Time`, `Current FPS`
+Read `features/` before a run and drive every entry point that feature file lists. A pass through one convenient selector does not cover a listed entry point you skipped. A feature file can name another selector for a case the six above do not cover.
 
 `Ctrl+N` / `Ctrl+O` / `Ctrl+S` poll `Input::isKeyPressed` on the real window. Synthetic ImGui key events do not fire those shortcuts. Escape posts a window-close event and exits the editor.
 
 `launch-editor` is for a visible window and a screenshot. Do not send mouse coordinates into that window as proof. ImGui hit testing is not a documented driver.
 
+## UI catalog
+
+`Tests\src\UiCatalog.h` lists every user-facing Editor control the driver must reach. Each `kUiCatalog` row gives the id, kind, reveal gesture, and observe check. Read that table for widget names. Do not keep a second list in this file. The in-repo driver contract is `docs/testing/editor-ui-driver.md`.
+
+Completeness has two checks.
+
+1. Hosted. `Tests/Windows/scan-ui-catalog.ps1` compares `Editor/src` widget literals with `kUiCatalog` in both directions. A label missing from the catalog fails, and a catalog id with no source literal fails. `Orthographic` and `Perspective` come from `ImGui::Selectable(projectionTypeName[i])`, and `ItemProbe` tags `##Splitter` from the dock geometry, so those three ids skip the literal rule.
+2. Display host. `Tests/Windows/check-ui-coverage.ps1 <evidence>` unions the `DRIVEN: ` lines from the evidence logs. It fails for a catalog id that is neither driven nor a window seen in the item dump.
+
+`verified-unreachable` is not a legal status for a catalog id. A catalogued control that the driver cannot reach is a failing completeness check, not a skip. Do not substitute `Scene::createEntity` or `saveSceneTo` for a menu the catalog claims.
+
+Hosted CI runs `scan-ui-catalog.ps1` and `UnitTests` on `windows-latest`. Live clicks run only on the display host.
+
 ## Evidence
 
 Proof artifacts go under `Binaries\Verify\<run-id>\evidence\`. That directory is inside gitignored `Binaries/`. Cleanup deletes `instance\` and never deletes `evidence\`.
 
-A `drive` writes `stdout.log`, `stderr.log`, and `summary.txt` there. `summary.txt` records run id, HEAD, selector, exit code, and every `PASS:`, `FAIL:`, `OBSERVED:`, and `DIALOG` line. Native-dialog work trees matching `issue-*-work-*` are copied next to those logs. `launch-editor` copies `editor.stdout.log` into evidence. `capture` writes `editor.png` of the GLFW window after restoring and foregrounding it. `capture` uses the screen pixels of that window rectangle, so overlapping desktop windows can appear in the PNG. Assert the title `Editor` and the panel names, not a clean desktop.
+A `drive` writes `stdout.log`, `stderr.log`, and `summary.txt` there. `drive editor-ui` writes one subdirectory for each selector and one shared `summary.txt` at the top. `summary.txt` records run id, HEAD, selector, exit code, and every `PASS:`, `FAIL:`, `OBSERVED:`, and `DIALOG` line. Native-dialog work trees matching `issue-*-work-*` are copied next to those logs. `launch-editor` copies `editor.stdout.log` into evidence. `capture` writes `editor.png` of the GLFW window after restoring and foregrounding it. `capture` uses the screen pixels of that window rectangle, so overlapping desktop windows can appear in the PNG. Assert the title `Editor` and the panel names, not a clean desktop.
 
 Proof standards:
 
