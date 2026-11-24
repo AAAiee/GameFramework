@@ -51,7 +51,7 @@ project "Engine"
    targetdir ("../Binaries/" .. OutputDir .. "/%{prj.name}")
    objdir ("../Binaries/Intermediates/" .. OutputDir .. "/%{prj.name}")
  
-   defines {"_CRT_SECURE_NO_WARNINGS","RUBBER_BUILD", "GLFW_INCLUDE_NONE"}
+   defines {"_CRT_SECURE_NO_WARNINGS","RUBBER_BUILD", "GLFW_INCLUDE_NONE", "IMGUI_ENABLE_TEST_ENGINE"}
 
    filter "system:windows"
        systemversion "latest"

@@ -40,6 +40,10 @@ namespace Rubber {
         /** Drives real scene Save As/Open and native dialogs in Regression. */
         friend class EditorIssue15Fixture;
         friend class ViewportPixelsFixture;
+        /** Drives every catalogued Editor widget through ItemProbe. */
+        friend class EditorReachabilityFixture;
+        /** Posts Escape as KeyPressedEvent to close Application. */
+        friend class EditorEscapeFixture;
 
 	private:
         void initializeSceneViewport();

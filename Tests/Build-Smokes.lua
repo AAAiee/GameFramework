@@ -19,7 +19,7 @@ local function smokeProject(name, source)
             "../Engine/RBVendor/yaml-cpp/include"
         }
         links { "Engine" }
-        defines { "GLFW_INCLUDE_NONE" }
+        defines { "GLFW_INCLUDE_NONE", "IMGUI_ENABLE_TEST_ENGINE" }
         targetdir ("../Binaries/" .. OutputDir .. "/%{prj.name}")
         objdir ("../Binaries/Intermediates/" .. OutputDir .. "/%{prj.name}")
         postbuildcommands {

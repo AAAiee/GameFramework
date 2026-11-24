@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "ImGuiLayer.h"
 #include "imgui.h"
+#include "Rubber/imGui/ItemProbe.h"
+#include "Rubber/Input/InputOverlay.h"
 
 #include <GLFW/glfw3.h>
 #include <backends/imgui_impl_glfw.h>
@@ -56,6 +58,7 @@ void Rubber::ImGuiLayer::onAttach()
     // Setup Platform/Renderer back ends
     ImGui_ImplGlfw_InitForOpenGL(win, true);
     ImGui_ImplOpenGL3_Init("#version 410");
+    ItemProbe::attachToContext();
 }
 
 void Rubber::ImGuiLayer::onDetach() {
@@ -68,7 +71,9 @@ void Rubber::ImGuiLayer::onDetach() {
 void Rubber::ImGuiLayer::begin() {
 	ImGui_ImplOpenGL3_NewFrame();
 	ImGui_ImplGlfw_NewFrame();
-	ImGui::NewFrame();  
+	InputOverlay::applyToImGui();
+	ImGui::NewFrame();
+	ItemProbe::beginFrame();
 }
 
 

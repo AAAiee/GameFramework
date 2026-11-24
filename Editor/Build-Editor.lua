@@ -33,7 +33,7 @@ project "Editor"
        "{COPY} \"imgui.ini\" \"%{cfg.targetdir}/\""
    }
 
-   defines { "RB_BUILD_EDITOR" }
+   defines { "RB_BUILD_EDITOR", "IMGUI_ENABLE_TEST_ENGINE" }
    
    filter "system:windows"
        systemversion "latest"
