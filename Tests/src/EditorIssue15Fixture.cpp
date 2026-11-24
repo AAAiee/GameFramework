@@ -1,31 +1,31 @@
 #include "pch.h"
 #include "EditorIssue15Fixture.h"
+#include "EditorDriver.h"
+#include "NativeFileDialog.h"
 #include "ViewportPixelsCheck.h"
 #include <cmath>
 #include "EditorLayer.h"
+#include "Rubber/Input/InputOverlay.h"
 #include "Rubber/Window/Window.h"
 #include "Rubber/imGui/ImGuiLayer.h"
+#include "Rubber/imGui/ItemProbe.h"
+#include <backends/imgui_impl_opengl3.h>
 #include <GLFW/glfw3.h>
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3native.h>
-#include <atomic>
-#include <thread>
 #include <exception>
 #include <stdexcept>
 #include <iterator>
 #include <windows.h>
-#include <commdlg.h>
-#include <dlgs.h>
-#include <UIAutomation.h>
-#include <wrl/client.h>
-#pragma comment(lib, "ole32.lib")
-#pragma comment(lib, "oleaut32.lib")
 
 namespace Rubber {
     namespace {
         void require(bool condition, const char* message) {
             if (!condition) throw std::runtime_error(message);
         }
+
+        using NativeFileDialog::Action;
+        using NativeFileDialog::dialog;
 
         /** Standalone selection precedes Application::run(), which normally attaches
          * ImGui. Reuse the application's context in the full suite; otherwise own
@@ -50,247 +50,6 @@ namespace Rubber {
         };
 
         constexpr auto filter = L"Rubber Scene (*.rubber)\0*.rubber\0\0";
-        enum class Action { Submit, Cancel, Decline, Confirm, Reject, Capacity };
-
-        struct Windows {
-            std::vector<HWND> dialogs;
-            static BOOL CALLBACK collect(HWND window, LPARAM context) {
-                DWORD process = 0;
-                GetWindowThreadProcessId(window, &process);
-                if (process != GetCurrentProcessId()) return TRUE;
-                wchar_t name[32]{};
-                GetClassNameW(window, name, 32);
-                if (IsWindowVisible(window) && std::wstring_view(name) == L"#32770")
-                    reinterpret_cast<Windows*>(context)->dialogs.push_back(window);
-                return TRUE;
-            }
-        };
-
-        HWND filenameEdit(HWND dialog) {
-            // Legacy common dialogs use edt1; Explorer-style dialogs use cmb13.
-            if (HWND edit = GetDlgItem(dialog, edt1)) return edit;
-            HWND edit = nullptr;
-            if (HWND combo = GetDlgItem(dialog, cmb13)) {
-                EnumChildWindows(combo, [](HWND child, LPARAM context) -> BOOL {
-                    wchar_t name[32]{};
-                    GetClassNameW(child, name, 32);
-                    if (std::wstring_view(name) == L"Edit") {
-                        *reinterpret_cast<HWND*>(context) = child;
-                        return FALSE;
-                    }
-                    return TRUE;
-                }, reinterpret_cast<LPARAM>(&edit));
-            }
-            if (!edit) {
-                // Current Windows dialogs nest the filename Edit (1001) below
-                // DirectUI/ComboBox hosts. The address bar has a different ID.
-                EnumChildWindows(dialog, [](HWND child, LPARAM context) -> BOOL {
-                    wchar_t name[32]{};
-                    GetClassNameW(child, name, 32);
-                    if (GetDlgCtrlID(child) == 1001 && std::wstring_view(name) == L"Edit") {
-                        *reinterpret_cast<HWND*>(context) = child;
-                        return FALSE;
-                    }
-                    return TRUE;
-                }, reinterpret_cast<LPARAM>(&edit));
-            }
-            return edit;
-        }
-
-        void command(HWND dialog, int id) {
-            require(PostMessageW(dialog, WM_COMMAND, MAKEWPARAM(id, BN_CLICKED),
-                reinterpret_cast<LPARAM>(GetDlgItem(dialog, id))) != FALSE,
-                "Could not send native dialog command");
-        }
-
-        using AutomationElement = Microsoft::WRL::ComPtr<IUIAutomationElement>;
-
-        std::vector<AutomationElement> accessibleButtons(IUIAutomation* automation, HWND window) {
-            AutomationElement root;
-            require(SUCCEEDED(automation->ElementFromHandle(window, &root)), "Cannot inspect native prompt");
-            Microsoft::WRL::ComPtr<IUIAutomationCondition> condition;
-            VARIANT type{};
-            type.vt = VT_I4;
-            type.lVal = UIA_ButtonControlTypeId;
-            require(SUCCEEDED(automation->CreatePropertyCondition(UIA_ControlTypePropertyId, type, &condition)),
-                "Cannot query native prompt buttons");
-            Microsoft::WRL::ComPtr<IUIAutomationElementArray> elements;
-            require(SUCCEEDED(root->FindAll(TreeScope_Descendants, condition.Get(), &elements)),
-                "Cannot enumerate native prompt buttons");
-            int length = 0;
-            elements->get_Length(&length);
-            std::vector<AutomationElement> buttons;
-            Microsoft::WRL::ComPtr<IUIAutomationTreeWalker> walker;
-            require(SUCCEEDED(automation->get_ControlViewWalker(&walker)), "Cannot inspect prompt hierarchy");
-            for (int i = 0; i < length; ++i) {
-                AutomationElement button;
-                elements->GetElement(i, &button);
-                BOOL enabled = FALSE;
-                button->get_CurrentIsEnabled(&enabled);
-                AutomationElement parent;
-                walker->GetParentElement(button.Get(), &parent);
-                CONTROLTYPEID parentType = 0;
-                if (parent) parent->get_CurrentControlType(&parentType);
-                // A private desktop is deliberately not the input desktop;
-                // providers may label its usable controls as offscreen.
-                if (enabled && parentType != UIA_TitleBarControlTypeId) buttons.push_back(button);
-            }
-            return buttons;
-        }
-
-        void invoke(IUIAutomationElement* button) {
-            Microsoft::WRL::ComPtr<IUIAutomationInvokePattern> pattern;
-            require(SUCCEEDED(button->GetCurrentPatternAs(UIA_InvokePatternId, IID_PPV_ARGS(&pattern))),
-                "Native prompt button has no invoke action");
-            require(SUCCEEDED(pattern->Invoke()), "Cannot invoke native prompt button");
-        }
-
-        /** Drives only native dialogs on the calling UI thread. All file selection,
-         * validation and overwrite decisions still execute in the production API.
-         * Polling discovers controls; elapsed time alone never establishes success.
-         */
-        template<class Call>
-        void dialog(const char* operation, Action action, const std::filesystem::path& path, Call call) {
-            std::cout << "DIALOG: " << operation << ", action=" << static_cast<int>(action)
-                << ", path-code-units=" << path.wstring().size() << std::endl;
-            const DWORD uiThread = GetCurrentThreadId();
-            const HDESK desktop = GetThreadDesktop(uiThread);
-            std::atomic<bool> finished = false;
-            std::exception_ptr driverFailure;
-            bool sawDialog = false, submitted = false, sawPrompt = false;
-            bool canceled = false, rejected = false;
-            size_t visibleDialogs = 0;
-            std::thread driver([&] {
-                const bool attached = SetThreadDesktop(desktop) != FALSE;
-                const HRESULT apartment = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-                Microsoft::WRL::ComPtr<IUIAutomation> automation;
-                CoCreateInstance(__uuidof(CUIAutomation), nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&automation));
-                HWND main = nullptr;
-                bool promptAnswered = false;
-                const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(15);
-                try {
-                    require(attached && SUCCEEDED(apartment) && automation,
-                        "Cannot initialize native dialog automation on the private desktop");
-                    while (!finished.load()) {
-                        require(std::chrono::steady_clock::now() < deadline,
-                            "Native file dialog exceeded 15 second timeout");
-                        Windows windows;
-                        EnumDesktopWindows(desktop, Windows::collect, reinterpret_cast<LPARAM>(&windows));
-                        visibleDialogs = (std::max)(visibleDialogs, windows.dialogs.size());
-                        if (!main) {
-                            for (HWND window : windows.dialogs) {
-                                if (filenameEdit(window)) { main = window; break; }
-                            }
-                        }
-                        if (main && IsWindowEnabled(main) && !submitted && !canceled) {
-                            sawDialog = true;
-                            if (action == Action::Cancel) {
-                                command(main, IDCANCEL);
-                                canceled = true;
-                            } else {
-                                const auto input = path.wstring();
-                                DWORD_PTR result = 0;
-                                require(SendMessageTimeoutW(filenameEdit(main), WM_SETTEXT, 0,
-                                    reinterpret_cast<LPARAM>(input.c_str()), SMTO_ABORTIFHUNG,
-                                    2000, &result) != 0 && result != 0,
-                                    "Could not enter filename in native dialog");
-                                std::vector<wchar_t> actual(input.size() + 2);
-                                require(SendMessageTimeoutW(filenameEdit(main), WM_GETTEXT,
-                                    actual.size(), reinterpret_cast<LPARAM>(actual.data()),
-                                    SMTO_ABORTIFHUNG, 2000, &result) != 0,
-                                    "Could not read native filename field");
-                                require(input == actual.data(), "Native dialog truncated test input before submission");
-                                command(main, IDOK);
-                                submitted = true;
-                            }
-                        }
-                        for (HWND window : windows.dialogs) {
-                            if (!submitted || window == main || !IsWindowEnabled(window)) continue;
-                            if (GetDlgItem(window, IDYES) && GetDlgItem(window, IDNO)) {
-                                require(action == Action::Decline || action == Action::Confirm,
-                                    "Unexpected overwrite confirmation");
-                                if (!promptAnswered) {
-                                    sawPrompt = true;
-                                    command(window, action == Action::Decline ? IDNO : IDYES);
-                                    promptAnswered = true;
-                                }
-                            } else if (GetDlgItem(window, IDOK)) {
-                                require(action == Action::Reject || action == Action::Capacity,
-                                    "Unexpected native dialog validation error");
-                                command(window, IDOK);
-                                rejected = true;
-                            } else if (automation) {
-                                const auto buttons = accessibleButtons(automation.Get(), window);
-                                if ((action == Action::Decline || action == Action::Confirm)
-                                    && buttons.size() == 2 && !promptAnswered) {
-                                    // Shell DirectUI exposes ordered Yes/No buttons without
-                                    // HWND IDs. The file assertions below verify each choice.
-                                    invoke(buttons[action == Action::Confirm ? 0 : 1].Get());
-                                    sawPrompt = promptAnswered = true;
-                                } else if ((action == Action::Reject || action == Action::Capacity)
-                                    && buttons.size() == 1 && !rejected) {
-                                    invoke(buttons.front().Get());
-                                    rejected = true;
-                                }
-                            }
-                        }
-                        if (main && IsWindowEnabled(main) && !canceled
-                            && ((action == Action::Decline && promptAnswered)
-                            || ((action == Action::Reject || action == Action::Capacity) && rejected))) {
-                            command(main, IDCANCEL);
-                            canceled = true;
-                        }
-                        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-                    }
-                } catch (...) {
-                    driverFailure = std::current_exception();
-                    // Unwind the modal call on failure. The PowerShell process timeout
-                    // is a final bound if Windows cannot process these close requests.
-                    while (!finished.load()) {
-                        Windows windows;
-                        EnumDesktopWindows(desktop, Windows::collect, reinterpret_cast<LPARAM>(&windows));
-                        for (HWND window : windows.dialogs) PostMessageW(window, WM_CLOSE, 0, 0);
-                        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-                    }
-                }
-                automation.Reset();
-                if (SUCCEEDED(apartment)) CoUninitialize();
-            });
-            std::exception_ptr callFailure;
-            DWORD nativeError = 0;
-            try {
-                call();
-                // Read on the calling UI thread before any subsequent dialog API.
-                nativeError = CommDlgExtendedError();
-            } catch (...) { callFailure = std::current_exception(); }
-            finished.store(true);
-            driver.join();
-            if (!sawDialog || nativeError != 0 || action == Action::Capacity) {
-                std::cerr << "DIALOG RESULT: " << operation
-                    << ", action=" << static_cast<int>(action)
-                    << ", CommDlgExtendedError=0x" << std::hex << nativeError << std::dec
-                    << ", visible-dialogs=" << visibleDialogs
-                    << ", rejected=" << rejected << ", canceled=" << canceled << ", submitted=" << submitted << '\n';
-            }
-            if (driverFailure) std::rethrow_exception(driverFailure);
-            if (callFailure) std::rethrow_exception(callFailure);
-            require(sawDialog, "Production call did not show a native filename dialog (see DIALOG RESULT)");
-            if (action != Action::Cancel)
-                require(submitted, "Filename was not submitted");
-            if (action == Action::Decline || action == Action::Confirm)
-                require(sawPrompt, "Existing file did not require overwrite confirmation");
-            if (action == Action::Decline || action == Action::Cancel)
-                require(canceled, "Native dialog did not process cancellation");
-            if (action == Action::Capacity) {
-                // A rejection is evidence only after the oversized filename was
-                // actually submitted. Initialization failures cannot test capacity.
-                require(nativeError == FNERR_BUFFERTOOSMALL
-                    || (nativeError == 0 && rejected && canceled),
-                    "Capacity check did not observe a native buffer/filename rejection");
-            } else {
-                require(nativeError == 0, "Native dialog API failed (see DIALOG RESULT)");
-            }
-        }
 
         std::string bytes(const std::filesystem::path& path) {
             std::ifstream input(path, std::ios::binary);
@@ -304,14 +63,29 @@ namespace Rubber {
         }
     }
 
-    /** Uses actual EditorLayer initialization and Save As/Open entry points.
+    /** Uses actual EditorLayer initialization, File menu clicks and native dialogs.
      * No serializer or dialog replacement and no synthetic success path is used.
      */
     class EditorIssue15Fixture final : public EditorLayer {
     public:
         void run() {
+            InputOverlay::clear();
             onAttach();
-            try { check(); } catch (...) { onDetach(); throw; }
+            ImGui_ImplOpenGL3_DestroyFontsTexture();
+            require(ImGui_ImplOpenGL3_CreateFontsTexture(), "Dialog fixture font texture rebuild failed");
+            ItemProbe::enable();
+            try {
+                frame();
+                frame();
+                check();
+            } catch (...) {
+                ItemProbe::disable();
+                InputOverlay::clear();
+                onDetach();
+                throw;
+            }
+            ItemProbe::disable();
+            InputOverlay::clear();
             onDetach();
             drainEvents();
         }
@@ -422,19 +196,19 @@ namespace Rubber {
             const auto destination = root / "new-scene.rubber";
             require(destination.wstring().size() < 250,
                 "Binary output directory is too long for normal-path dialog checks");
-            dialog("Editor Save As", Action::Submit, destination, [&] { saveScene(); });
+            menuSaveAs(Action::Submit, destination);
             const auto original = bytes(destination);
             require(original.find("123123141") != std::string::npos, "Placeholder entity identity missing");
             entity().getComponent<TagComponent>().tag = "unsaved edit";
-            dialog("Editor Open", Action::Submit, destination, [&] { openScene(); });
+            menuOpen(destination);
             verify("F04 original");
             drainEvents();
             std::cout << "OBSERVED: new scene saved and reopened with supported component data\n";
 
             entity().getComponent<TagComponent>().tag = "F04 replacement";
-            dialog("Editor Save As", Action::Decline, destination, [&] { saveScene(); });
+            menuSaveAs(Action::Decline, destination);
             require(bytes(destination) == original, "Declining overwrite changed destination bytes");
-            dialog("Editor Save As", Action::Cancel, {}, [&] { saveScene(); });
+            menuSaveAs(Action::Cancel, {});
             require(bytes(destination) == original, "Canceling editor Save As changed destination bytes");
             std::wstring result = L"not empty";
             dialog("fileDialog Save As", Action::Cancel, {}, [&] { result = fileDialog::saveFile(filter); });
@@ -442,9 +216,9 @@ namespace Rubber {
             dialog("fileDialog Save As", Action::Decline, destination, [&] { result = fileDialog::saveFile(filter); });
             require(result.empty(), "Decline then cancel did not return an empty path");
             require(bytes(destination) == original, "Decline/cancel changed destination");
-            dialog("Editor Save As", Action::Confirm, destination, [&] { saveScene(); });
+            menuSaveAs(Action::Confirm, destination);
             require(bytes(destination) != original, "Confirmed replacement did not write new scene");
-            dialog("Editor Open", Action::Submit, destination, [&] { openScene(); });
+            menuOpen(destination);
             verify("F04 replacement");
             drainEvents();
             std::cout << "OBSERVED: overwrite prompted; decline/cancel preserved bytes; confirmation replaced scene\n";
@@ -453,10 +227,10 @@ namespace Rubber {
             dialog("fileDialog Save As", Action::Submit, unicode, [&] { result = fileDialog::saveFile(filter); });
             require(result == unicode.wstring(), "Save As changed the Unicode path");
             // Exercise the editor's entire save/open path too, not just path selection.
-            dialog("Editor Save As", Action::Submit, unicode, [&] { saveScene(); });
+            menuSaveAs(Action::Submit, unicode);
             require(bytes(unicode) == bytes(destination), "Unicode scene file differs from saved scene");
             entity().getComponent<TagComponent>().tag = "unsaved Unicode edit";
-            dialog("Editor Open", Action::Submit, unicode, [&] { openScene(); });
+            menuOpen(unicode);
             verify("F04 replacement");
             drainEvents();
             dialog("fileDialog Open", Action::Submit, unicode, [&] { result = fileDialog::openFile(filter); });
@@ -506,6 +280,64 @@ namespace Rubber {
                 "Native dialogs changed the working directory");
             std::cout << "OBSERVED: both dialogs rejected over-capacity paths without writing or crashing\n";
         }
+
+        /** Let EditorLayer draw the menu, then answer the same production dialog. */
+        void menuSaveAs(Action action, const std::filesystem::path& path) {
+            NativeFileDialog::FileDialogSession session("Editor Save As", action, path);
+            m_Driver.click("File");
+            settle(1);
+            m_Driver.click("Save As...");
+            settle(3);
+            session.finish();
+            session.rethrow();
+            const DWORD error = CommDlgExtendedError();
+            require(session.sawDialog(), "File / Save As... did not open a native dialog");
+            if (action == Action::Cancel) {
+                require(session.canceled(), "Canceling editor Save As did not reach the dialog");
+            } else {
+                require(session.submitted(), "File / Save As... did not submit a filename");
+                if (action == Action::Decline)
+                    require(session.sawPrompt() && session.canceled(),
+                        "Declining overwrite did not answer the native prompt");
+                if (action == Action::Confirm)
+                    require(session.sawPrompt(), "Existing file did not require overwrite confirmation");
+            }
+            require(error == 0, "File / Save As... dialog API failed");
+        }
+
+        void menuOpen(const std::filesystem::path& path) {
+            NativeFileDialog::FileDialogSession session("Editor Open", Action::Submit, path);
+            m_Driver.click("File");
+            settle(1);
+            m_Driver.click("Open...");
+            settle(3);
+            session.finish();
+            session.rethrow();
+            const DWORD error = CommDlgExtendedError();
+            require(session.sawDialog() && session.submitted(), "File / Open... did not submit a filename");
+            require(error == 0, "File / Open... dialog API failed");
+        }
+
+        void frame() {
+            require(++m_Frames < 1200, "Dialog fixture exceeded frame bound");
+            m_Driver.tick();
+            m_Layer.begin();
+            EditorLayer::onImGuiRender();
+            m_Layer.end();
+        }
+
+        void settle(int extra = 1) {
+            unsigned guard = 0;
+            while (m_Driver.busy()) {
+                require(++guard < 64, "Driver action did not finish");
+                frame();
+            }
+            for (int i = 0; i < extra; ++i) frame();
+        }
+
+        ImGuiLayer m_Layer;
+        EditorDriver m_Driver;
+        unsigned m_Frames = 0;
     };
 
     void checkViewportSceneInitialization() {

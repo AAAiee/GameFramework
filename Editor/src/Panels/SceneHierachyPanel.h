@@ -29,7 +29,6 @@ namespace Rubber {
 		void onImGuiRender();
 
 	private:
-        friend class EntityTagsFixture;
 		void drawEntityNode(Entity entity);
 		void drawComponentNode(Entity entity);
 
