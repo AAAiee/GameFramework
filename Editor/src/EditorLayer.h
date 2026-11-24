@@ -35,6 +35,9 @@ namespace Rubber {
 		/** Requires an active ImGui frame; presents target and edits scene through panels. */
 		void onImGuiRender() override;
 
+        Ref<Scene> activeScene() const { return m_ActiveScene; }
+        glm::vec2 viewPortDimension() const { return m_ViewPortDimension; }
+
         /** Grants the first-party runtime fixture access to the active editor scene. */
         friend class EditorIssue12Fixture;
         /** Drives real scene Save As/Open and native dialogs in Regression. */

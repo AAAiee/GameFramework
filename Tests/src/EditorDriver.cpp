@@ -1,6 +1,10 @@
 #include "pch.h"
 #include "EditorDriver.h"
+#include "Rubber/Core/Application.h"
+#include "Rubber/Event/EventManager.h"
+#include "Rubber/Event/KeyEvent.h"
 #include "Rubber/Input/InputOverlay.h"
+#include "Rubber/Input/KeyCodes.h"
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -20,6 +24,8 @@ namespace Rubber {
             std::cout.write(line.data(), static_cast<std::streamsize>(line.size()));
             std::cout.flush();
         }
+
+        constexpr int kChordHoldTicks = 2;
     }
 
     void EditorDriver::click(std::string_view path, int button, int occurrence) {
@@ -71,6 +77,37 @@ namespace Rubber {
         m_Queue.push_back(std::move(action));
     }
 
+    void EditorDriver::typeText(std::string_view text) {
+        Action action;
+        action.kind = Kind::Text;
+        action.text = std::string(text);
+        m_Queue.push_back(std::move(action));
+    }
+
+    void EditorDriver::chord(int key) {
+        Action action;
+        action.kind = Kind::Chord;
+        action.key = key;
+        m_Queue.push_back(std::move(action));
+    }
+
+    void EditorDriver::openCombo(std::string_view path) {
+        click(path);
+        waitFrames(1);
+    }
+
+    void EditorDriver::beginDialogCancel() {
+        m_Dialog = std::make_unique<NativeDialog::CancelDialogSession>();
+    }
+
+    bool EditorDriver::sawDialog() const {
+        return m_Dialog && m_Dialog->sawDialog();
+    }
+
+    void EditorDriver::endDialogCancel() {
+        m_Dialog.reset();
+    }
+
     void EditorDriver::dump(std::ostream& out) const {
         ItemProbe::dump(out);
     }
@@ -114,6 +151,19 @@ namespace Rubber {
         switch (action.kind) {
             case Kind::Wait:
                 if (--action.wait <= 0) m_Queue.erase(m_Queue.begin());
+                return;
+            case Kind::Text:
+                ImGui::GetIO().AddInputCharactersUTF8(action.text.c_str());
+                m_Queue.erase(m_Queue.begin());
+                return;
+            case Kind::Chord:
+                if (action.phase == 0) {
+                    InputOverlay::press(RB_KEY_LEFT_CONTROL);
+                    Application::getEventManager()->enqueue(KeyPressedEvent(action.key, 0));
+                }
+                if (++action.phase <= kChordHoldTicks) return;
+                InputOverlay::release(RB_KEY_LEFT_CONTROL);
+                m_Queue.erase(m_Queue.begin());
                 return;
             case Kind::Click:
             case Kind::ClickPoint: {
