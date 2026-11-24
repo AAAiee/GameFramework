@@ -8,6 +8,22 @@ on:
   workflow_dispatch:
 
 jobs:
+  ui-catalog:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan Editor widget labels against the UI catalog
+        shell: pwsh
+        run: |
+          $started = Get-Date
+          & ./Tests/Windows/scan-ui-catalog.ps1
+          $code = $LASTEXITCODE
+          $seconds = ((Get-Date) - $started).TotalSeconds
+          Write-Host ("scan-ui-catalog {0:N2} s" -f $seconds)
+          if ($code -ne 0) { throw 'scan-ui-catalog failed' }
+          if ($seconds -ge 5) { throw "scan-ui-catalog took $seconds s, limit 5 s" }
+
   unittests:
     runs-on: windows-latest
     timeout-minutes: 30
