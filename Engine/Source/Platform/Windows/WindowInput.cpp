@@ -3,11 +3,14 @@
 #include <GLFW/glfw3.h>
 #include "Rubber/Core/Application.h"
 #include "Rubber/Window/Window.h"
+#include "Rubber/Input/InputOverlay.h"
 
 namespace Rubber {  
    Input* Input::s_Instance = new WindowInput();
    
    bool WindowInput::isKeyPressedImpl(int keyCode){
+	   if (InputOverlay::isPressed(keyCode))
+		   return true;
 	   auto win =static_cast<GLFWwindow*>(Application::getWindow().getNativeWindow());
 	   bool state = glfwGetKey(win, keyCode);
 	   return state == GLFW_PRESS;
