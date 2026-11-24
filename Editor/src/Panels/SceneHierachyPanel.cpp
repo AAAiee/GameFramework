@@ -1,4 +1,5 @@
 #include "Panels/SceneHierachyPanel.h"
+#include "Ui/EditorUi.h"
 #include <glm/gtc/type_ptr.hpp>
 #include "Utilities/FontsManager/FontManager.h"
 #include <entt.hpp>
@@ -302,7 +303,7 @@ namespace Rubber {
 				const char* projectionTypeName[] = { "Orthographic", "Perspective" };
 				const char* currentProjectionName = projectionTypeName[static_cast<uint8_t>(camera.getProjectionType())];
 
-				if (ImGui::BeginCombo("Projection", currentProjectionName))
+				if (EditorUi::beginCombo("Projection", currentProjectionName))
 				{
 					for (int i = 0; i < 2; i++) {
 
@@ -364,7 +365,7 @@ namespace Rubber {
 		// Only supports a color picker for a color sprite component for now
 		drawComponent<SpriteComponent>("Sprite Renderer", entity, [](Entity entity) {
 				auto& sprite = entity.getComponent<SpriteComponent>();
-				ImGui::ColorEdit4("Color Picker", glm::value_ptr(sprite.color));
+				EditorUi::colorEdit4("Color Picker", glm::value_ptr(sprite.color));
 			}, true);
 	}
 }

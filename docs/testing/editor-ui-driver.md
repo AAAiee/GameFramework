@@ -43,9 +43,11 @@ Menus and popups exist only after an open gesture. `EditorDriver` clicks
 `File` then `New`. Blank-space context menus use `rightClickBlank("Scene Hierarchy")`
 then `Create Entity`. Duplicate labels (`X`, `...`, `##Splitter`) disambiguate
 by occurrence index. Equal-size hits are top-to-bottom, then left-to-right.
-ColorEdit4's preview square has no ItemInfo; ItemProbe tags it `Color Picker`
-when it sits beside `##W`. BeginCombo has no ItemInfo; ItemProbe tags the
-unlabeled row directly above `Size` or `FOVY` as `Projection`.
+ColorEdit4's preview square and BeginCombo's row skip `ITEM_INFO`.
+`EditorUi::colorEdit4` and `EditorUi::beginCombo` bind `Color Picker` and
+`Projection` to the id ImGui submits for the clickable item.
+Production `Editor.exe` never calls `ItemProbe::enable()`, so the bind is a
+no-op there.
 
 ## Operations
 

@@ -32,6 +32,7 @@ namespace Rubber {
         static void enable();
         static void disable();
         static void beginFrame();
+        static void bindLabel(ImGuiID id, std::string_view label);
         static std::optional<UiItem> find(std::string_view query, int occurrence = 0);
         static std::vector<UiItem> snapshot();
         static void dump(std::ostream& out);

@@ -3,7 +3,6 @@
 
 #include <imgui_internal.h>
 #include <algorithm>
-#include <cmath>
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
@@ -35,44 +34,6 @@ namespace {
         if (w <= 0.0f || h <= 0.0f) return 0.0f;
         return w * h;
     }
-
-    /** ColorEdit4's preview is ColorButton("##ColorButton") with no ItemInfo.
-     * The user-facing label is TextEx only. Tag the square beside ##W so
-     * find("Color Picker") hits the control a user clicks.
-     */
-    void synthesizeLabels() {
-        for (auto& item : g_Items) {
-            if (!item.label.empty()) continue;
-            const float width = item.max.x - item.min.x;
-            const float height = item.max.y - item.min.y;
-
-            if (width >= 12.0f && height >= 12.0f && width <= 40.0f && height <= 40.0f
-                && std::fabs(width - height) <= 8.0f) {
-                for (const auto& other : g_Items) {
-                    if (other.label != "##W" || other.window != item.window) continue;
-                    if (item.min.y > other.max.y || item.max.y < other.min.y) continue;
-                    if (item.min.x + 1.0f < other.max.x) continue;
-                    if (item.min.x > other.max.x + 16.0f) continue;
-                    item.label = "Color Picker";
-                    item.path = makePath(item.window, item.label);
-                    break;
-                }
-            }
-
-            if (item.label.empty() && width >= 80.0f && height >= 16.0f && height <= 32.0f) {
-                for (const auto& size : g_Items) {
-                    if ((size.label != "Size" && size.label != "FOVY")
-                        || size.window != item.window) continue;
-                    if (std::fabs(item.min.x - size.min.x) > 2.0f) continue;
-                    if (item.max.y > size.min.y) continue;
-                    if (size.min.y - item.max.y > 16.0f) continue;
-                    item.label = "Projection";
-                    item.path = makePath(item.window, item.label);
-                    break;
-                }
-            }
-        }
-    }
 }
 
 void Rubber::ItemProbe::attachToContext() {
@@ -99,8 +60,16 @@ void Rubber::ItemProbe::beginFrame() {
     g_Index.clear();
 }
 
+void Rubber::ItemProbe::bindLabel(ImGuiID id, std::string_view label) {
+    if (!g_Enabled) return;
+    auto found = g_Index.find(id);
+    if (found == g_Index.end()) return;
+    auto& item = g_Items[found->second];
+    item.label.assign(label);
+    item.path = makePath(item.window, item.label);
+}
+
 std::optional<Rubber::UiItem> Rubber::ItemProbe::find(std::string_view query, int occurrence) {
-    synthesizeLabels();
     std::vector<const UiItem*> hits;
     hits.reserve(8);
     for (const auto& item : g_Items) {
@@ -121,12 +90,10 @@ std::optional<Rubber::UiItem> Rubber::ItemProbe::find(std::string_view query, in
 }
 
 std::vector<Rubber::UiItem> Rubber::ItemProbe::snapshot() {
-    synthesizeLabels();
     return g_Items;
 }
 
 void Rubber::ItemProbe::dump(std::ostream& out) {
-    synthesizeLabels();
     out << "UI items (" << g_Items.size() << ")\n";
     for (const auto& item : g_Items) {
         out << "  " << item.path
