@@ -4,7 +4,6 @@ on:
   push:
     branches: [Editor]
   pull_request:
-    branches: [Editor]
   workflow_dispatch:
 
 jobs:
