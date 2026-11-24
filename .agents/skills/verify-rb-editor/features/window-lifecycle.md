@@ -23,13 +23,13 @@ Preconditions:
 - No other `drive` holds `Binaries\Verify\.drive.lock`.
 
 - **Minimize and restore.** Drive the production window through native minimize and restore. Run `pwsh -NoProfile -File .agents/skills/verify-rb-editor/scripts/rb-verify.ps1 drive window-lifecycle`. Exit code `0`. `evidence\summary.txt` contains `PASS: editor-issue-18`, an `OBSERVED: minimized` line with `fixed updates=0`, and an `OBSERVED: restored` line.
-- **File / Exit.** Run `pwsh -NoProfile -File .agents/skills/verify-rb-editor/scripts/rb-verify.ps1 drive editor-ui`. Exit code `0`. `evidence\summary.txt` contains `OBSERVED: File / Exit closed the editor`.
-- **Escape.** Run `pwsh -NoProfile -File .agents/skills/verify-rb-editor/scripts/rb-verify.ps1 drive editor-ui-escape`. Exit code `0`. `evidence\summary.txt` contains `PASS: editor-ui-escape` and `OBSERVED: Escape posted WindowCloseEvent and closed the editor`.
+- **File / Exit.** Run `pwsh -NoProfile -File .agents/skills/verify-rb-editor/scripts/rb-verify.ps1 drive ui-exit`. Exit code `0`. `evidence\summary.txt` contains `PASS: ui-exit` and `OBSERVED: File / Exit closed the editor`.
+- **Escape.** Run `pwsh -NoProfile -File .agents/skills/verify-rb-editor/scripts/rb-verify.ps1 drive ui-escape`. Exit code `0`. `evidence\summary.txt` contains `PASS: ui-escape` and `OBSERVED: Escape posted WindowCloseEvent and closed the editor`.
 - **Proof.** Keep `evidence\stdout.log` and `summary.txt`. A screenshot of a restored window without that marker is not enough.
 
 ## Gotchas
 
-- `drive window-lifecycle` still covers native minimize/restore only. Escape is `drive editor-ui-escape`. File / Exit is `drive editor-ui`.
+- `drive window-lifecycle` still covers native minimize/restore only. Escape is `drive ui-escape`. File / Exit is `drive ui-exit`.
 - Escape on a live `launch-editor` instance closes the process. Do not send Escape while capturing a screenshot.
 - Minimized frames still poll and render ImGui. They discard lag. Restore skips the minimized delta.
 - Timeout is 60 seconds. Kill only the Regression process this drive started.

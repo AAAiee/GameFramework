@@ -96,8 +96,14 @@ $script:FeatureMap = @{
     'minimize-restore' = @{ Arg = 'editor-issue-18'; Marker = 'PASS: editor-issue-18'; TimeoutMs = 60000 }
     'editor-issue-18'  = @{ Arg = 'editor-issue-18'; Marker = 'PASS: editor-issue-18'; TimeoutMs = 60000 }
     'editor-issue-12'  = @{ Arg = 'editor-issue-12'; Marker = 'PASS: editor-issue-12'; TimeoutMs = 60000 }
-    'editor-ui'        = @{ Arg = 'editor-ui'; Marker = 'PASS: editor-ui'; TimeoutMs = 120000 }
-    'editor-ui-escape' = @{ Arg = 'editor-ui-escape'; Marker = 'PASS: editor-ui-escape'; TimeoutMs = 60000 }
+    'ui-hierarchy'     = @{ Arg = 'ui-hierarchy'; Marker = 'PASS: ui-hierarchy'; TimeoutMs = 120000 }
+    'ui-inspector'     = @{ Arg = 'ui-inspector'; Marker = 'PASS: ui-inspector'; TimeoutMs = 120000 }
+    'ui-files'         = @{ Arg = 'ui-files'; Marker = 'PASS: ui-files'; TimeoutMs = 120000 }
+    'ui-viewport'      = @{ Arg = 'ui-viewport'; Marker = 'PASS: ui-viewport'; TimeoutMs = 120000 }
+    'ui-exit'          = @{ Arg = 'ui-exit'; Marker = 'PASS: ui-exit'; TimeoutMs = 60000 }
+    'ui-escape'        = @{ Arg = 'ui-escape'; Marker = 'PASS: ui-escape'; TimeoutMs = 60000 }
+    'editor-ui'        = @{ Matrix = @('ui-hierarchy', 'ui-inspector', 'ui-files', 'ui-viewport'); TimeoutMs = 120000 }
+    'editor-ui-escape' = @{ Arg = 'ui-escape'; Marker = 'PASS: ui-escape'; TimeoutMs = 60000 }
     'scene-hooks'      = @{ Arg = 'scene-hooks'; Marker = 'PASS: scene-hooks'; TimeoutMs = 60000 }
     'camera-inverse'   = @{ Arg = 'camera-inverse'; Marker = 'PASS: camera-inverse'; TimeoutMs = 30000 }
 }
@@ -397,6 +403,82 @@ function Invoke-Capture {
     Write-Output "EVIDENCE=$($paths.Evidence)"
 }
 
+function Invoke-DriveOne {
+    param(
+        [string] $Repo,
+        [string] $Configuration,
+        [string] $RunId,
+        [string] $Feature,
+        $Spec,
+        $Paths,
+        [string] $Evidence,
+        [string] $Summary,
+        [string] $Regression,
+        [string] $WorkDir
+    )
+    $selector = [string]$Spec['Arg']
+    New-Item -ItemType Directory -Force -Path $Evidence | Out-Null
+    $stdout = Join-Path $Evidence 'stdout.log'
+    $stderr = Join-Path $Evidence 'stderr.log'
+    $proc = $null
+    $exitCode = -1
+    try {
+        Add-Content -LiteralPath $Summary -Value "selector=$selector"
+        Add-Content -LiteralPath $Summary -Value "marker=$($Spec['Marker'])"
+        $proc = Start-Process -FilePath $Regression -ArgumentList $selector `
+            -WorkingDirectory $WorkDir -RedirectStandardOutput $stdout `
+            -RedirectStandardError $stderr -WindowStyle Hidden -PassThru
+        $state = [pscustomobject]@{
+            runId     = $RunId
+            pid       = $proc.Id
+            exe       = $Regression
+            workDir   = $WorkDir
+            feature   = $Feature
+            selector  = $selector
+            startedUtc = [DateTime]::UtcNow.ToString('o')
+            kind      = 'regression'
+            configuration = $Configuration
+            head      = Get-Head $Repo
+        }
+        Write-State $Paths $state
+        if (-not $proc.WaitForExit([int]$Spec['TimeoutMs'])) {
+            throw "Regression $selector exceeded $($Spec['TimeoutMs']) ms"
+        }
+        $proc.WaitForExit()
+        $exitCode = $proc.ExitCode
+        $text = if (Test-Path $stdout) { Get-Content -LiteralPath $stdout -Raw } else { '' }
+        $pass = $text -match ('(?m)^' + [regex]::Escape([string]$Spec['Marker']) + '\r?$')
+        Add-Content -LiteralPath $Summary -Value "exit=$exitCode"
+        Add-Content -LiteralPath $Summary -Value "pass_marker=$pass"
+        if ($text) {
+            $text -split "`n" | Where-Object { $_ -match '^(PASS:|FAIL:|OBSERVED:|DIALOG)' } |
+                ForEach-Object { Add-Content -LiteralPath $Summary -Value $_.TrimEnd() }
+        }
+        Get-ChildItem -LiteralPath $WorkDir -Directory -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -like 'issue-*-work-*' } |
+            ForEach-Object {
+                Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $Evidence $_.Name) -Recurse -Force
+            }
+        if ($exitCode -ne 0) { throw "Regression $selector exited $exitCode. See $stdout and $stderr" }
+        if (-not $pass) { throw "Regression $selector did not print $($Spec['Marker']). See $stdout" }
+        Write-Output "DRIVE_OK run_id=$RunId feature=$Feature selector=$selector marker=$($Spec['Marker'])"
+    } finally {
+        if ($null -ne $proc) {
+            if (-not $proc.HasExited) {
+                $proc.Kill()
+                $proc.WaitForExit()
+            }
+            $proc.Dispose()
+        }
+        if (Test-Path -LiteralPath $Paths.StateFile) {
+            $st = Read-State $Paths
+            if ($st.kind -eq 'regression') {
+                Remove-Item -LiteralPath $Paths.StateFile -Force
+            }
+        }
+    }
+}
+
 function Invoke-Drive {
     param([string] $Repo, [string] $Configuration, [string] $Feature, [string] $RunId)
     $spec = Resolve-DriveSpec $Feature
@@ -416,74 +498,36 @@ function Invoke-Drive {
         }
     }
     Set-Content -LiteralPath $lockPath -Value $PID -Encoding ascii
-    $stdout = Join-Path $paths.Evidence 'stdout.log'
-    $stderr = Join-Path $paths.Evidence 'stderr.log'
     $summary = Join-Path $paths.Evidence 'summary.txt'
-    $proc = $null
-    $exitCode = -1
     try {
-        @"
-run_id=$RunId
-feature=$Feature
-selector=$($spec.Arg)
-marker=$($spec.Marker)
-configuration=$Configuration
-head=$(Get-Head $Repo)
-exe=$regression
-work_dir=$workDir
-"@ | Set-Content -LiteralPath $summary -Encoding utf8
-        $proc = Start-Process -FilePath $regression -ArgumentList $spec.Arg `
-            -WorkingDirectory $workDir -RedirectStandardOutput $stdout `
-            -RedirectStandardError $stderr -WindowStyle Hidden -PassThru
-        $state = [pscustomobject]@{
-            runId     = $RunId
-            pid       = $proc.Id
-            exe       = $regression
-            workDir   = $workDir
-            feature   = $Feature
-            selector  = $spec.Arg
-            startedUtc = [DateTime]::UtcNow.ToString('o')
-            kind      = 'regression'
-            configuration = $Configuration
-            head      = Get-Head $Repo
+        $header = @(
+            "run_id=$RunId",
+            "feature=$Feature",
+            "configuration=$Configuration",
+            "head=$(Get-Head $Repo)",
+            "exe=$regression",
+            "work_dir=$workDir"
+        )
+        if ($spec.ContainsKey('Matrix')) {
+            $header += "matrix=$($spec['Matrix'] -join ',')"
         }
-        Write-State $paths $state
-        if (-not $proc.WaitForExit([int]$spec.TimeoutMs)) {
-            throw "Regression $($spec.Arg) exceeded $($spec.TimeoutMs) ms"
-        }
-        $proc.WaitForExit()
-        $exitCode = $proc.ExitCode
-        $text = if (Test-Path $stdout) { Get-Content -LiteralPath $stdout -Raw } else { '' }
-        $pass = $text -match ('(?m)^' + [regex]::Escape($spec.Marker) + '\r?$')
-        Add-Content -LiteralPath $summary -Value "exit=$exitCode"
-        Add-Content -LiteralPath $summary -Value "pass_marker=$pass"
-        if ($text) {
-            $text -split "`n" | Where-Object { $_ -match '^(PASS:|FAIL:|OBSERVED:|DIALOG)' } |
-                ForEach-Object { Add-Content -LiteralPath $summary -Value $_.TrimEnd() }
-        }
-        Get-ChildItem -LiteralPath $workDir -Directory -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -like 'issue-*-work-*' } |
-            ForEach-Object {
-                Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $paths.Evidence $_.Name) -Recurse -Force
+        $header | Set-Content -LiteralPath $summary -Encoding utf8
+        if ($spec.ContainsKey('Matrix')) {
+            foreach ($child in $spec['Matrix']) {
+                $childSpec = Resolve-DriveSpec $child
+                $childEvidence = Join-Path $paths.Evidence $child
+                Invoke-DriveOne -Repo $Repo -Configuration $Configuration -RunId $RunId -Feature $Feature `
+                    -Spec $childSpec -Paths $paths -Evidence $childEvidence -Summary $summary `
+                    -Regression $regression -WorkDir $workDir
             }
-        if ($exitCode -ne 0) { throw "Regression $($spec.Arg) exited $exitCode. See $stdout and $stderr" }
-        if (-not $pass) { throw "Regression $($spec.Arg) did not print $($spec.Marker). See $stdout" }
-        Write-Output "DRIVE_OK run_id=$RunId feature=$Feature selector=$($spec.Arg) marker=$($spec.Marker)"
+            Write-Output "DRIVE_OK run_id=$RunId feature=$Feature matrix=$($spec['Matrix'] -join ',')"
+        } else {
+            Invoke-DriveOne -Repo $Repo -Configuration $Configuration -RunId $RunId -Feature $Feature `
+                -Spec $spec -Paths $paths -Evidence $paths.Evidence -Summary $summary `
+                -Regression $regression -WorkDir $workDir
+        }
         Write-Output "EVIDENCE=$($paths.Evidence)"
     } finally {
-        if ($null -ne $proc) {
-            if (-not $proc.HasExited) {
-                $proc.Kill()
-                $proc.WaitForExit()
-            }
-            $proc.Dispose()
-        }
-        if (Test-Path -LiteralPath $paths.StateFile) {
-            $st = Read-State $paths
-            if ($st.kind -eq 'regression') {
-                Remove-Item -LiteralPath $paths.StateFile -Force
-            }
-        }
         if (Test-Path -LiteralPath $lockPath) {
             $lockPid = [int]((Get-Content -LiteralPath $lockPath -Raw).Trim())
             if ($lockPid -eq $PID) { Remove-Item -LiteralPath $lockPath -Force }

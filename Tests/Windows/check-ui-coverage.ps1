@@ -8,7 +8,6 @@ Set-StrictMode -Version Latest
 
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $catalogPath = Join-Path $root 'Tests\src\UiCatalog.h'
-$pendingPathDrive = @('X', 'Y', 'Z', '##Y', '##Z', '##Tag', 'NearClip', 'FarClip', '##Splitter')
 
 $evidence = (Resolve-Path -LiteralPath $EvidenceDir).Path
 $catalogText = [IO.File]::ReadAllText($catalogPath)
@@ -45,25 +44,17 @@ foreach ($log in $logs) {
 }
 
 $missing = [System.Collections.Generic.List[string]]::new()
-$stillPending = [System.Collections.Generic.List[string]]::new()
 foreach ($id in $ids) {
     if ($driven.Contains($id)) { continue }
     if ($kinds[$id] -eq 'Window' -and $labels.Contains($id)) { continue }
-    if ($pendingPathDrive -contains $id) {
-        $stillPending.Add($id)
-        continue
-    }
     $missing.Add($id)
 }
 
-foreach ($id in $stillPending) {
-    Write-Output "PENDING $id"
-}
 if ($missing.Count -gt 0) {
     Write-Output 'FAIL catalog ids never driven:'
     $missing | Sort-Object | ForEach-Object { Write-Output "  $_" }
     exit 1
 }
 
-Write-Output ("OK catalog {0} ids, {1} DRIVEN paths, {2} pending" -f $ids.Count, $driven.Count, $stillPending.Count)
+Write-Output ("OK catalog {0} ids, {1} DRIVEN paths, 0 pending" -f $ids.Count, $driven.Count)
 exit 0
