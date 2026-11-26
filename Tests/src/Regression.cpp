@@ -22,7 +22,7 @@
 #include "AtlasPlaceholdersCheck.h"
 #include "GLBoundariesCheck.h"
 #include "GLBuffersCheck.h"
-#include "EditorReachabilityCheck.h"
+#include "ui/UiScripts.h"
 #include <windows.h>
 
 namespace {
@@ -94,8 +94,8 @@ namespace {
 }
 
 int main(int argc, char** argv) {
-    if (argc > 2 || (argc == 2 && (std::string_view(argv[1]) != "scene-hooks" && std::string_view(argv[1]) != "editor-issue-12" && std::string_view(argv[1]) != "camera-inverse" && std::string_view(argv[1]) != "renderer-batches" && std::string_view(argv[1]) != "editor-issue-15" && std::string_view(argv[1]) != "entity-tags" && std::string_view(argv[1]) != "editor-issue-16" && std::string_view(argv[1]) != "viewport-pixels" && std::string_view(argv[1]) != "editor-issue-17" && std::string_view(argv[1]) != "minimize-restore" && std::string_view(argv[1]) != "editor-issue-18" && std::string_view(argv[1]) != "layer-partition" && std::string_view(argv[1]) != "typed-events" && std::string_view(argv[1]) != "event-names" && std::string_view(argv[1]) != "font-atlas" && std::string_view(argv[1]) != "atlas-placeholders" && std::string_view(argv[1]) != "gl-boundaries" && std::string_view(argv[1]) != "gl-buffers" && std::string_view(argv[1]) != "editor-ui" && std::string_view(argv[1]) != "editor-ui-escape"))) {
-        std::cerr << "Usage: Regression.exe [scene-hooks|editor-issue-12|camera-inverse|renderer-batches|editor-issue-15|entity-tags|editor-issue-16|viewport-pixels|editor-issue-17|minimize-restore|editor-issue-18|layer-partition|typed-events|event-names|font-atlas|atlas-placeholders|gl-boundaries|gl-buffers|editor-ui|editor-ui-escape]\n";
+    if (argc > 2 || (argc == 2 && (std::string_view(argv[1]) != "scene-hooks" && std::string_view(argv[1]) != "editor-issue-12" && std::string_view(argv[1]) != "camera-inverse" && std::string_view(argv[1]) != "renderer-batches" && std::string_view(argv[1]) != "editor-issue-15" && std::string_view(argv[1]) != "entity-tags" && std::string_view(argv[1]) != "editor-issue-16" && std::string_view(argv[1]) != "viewport-pixels" && std::string_view(argv[1]) != "editor-issue-17" && std::string_view(argv[1]) != "minimize-restore" && std::string_view(argv[1]) != "editor-issue-18" && std::string_view(argv[1]) != "layer-partition" && std::string_view(argv[1]) != "typed-events" && std::string_view(argv[1]) != "event-names" && std::string_view(argv[1]) != "font-atlas" && std::string_view(argv[1]) != "atlas-placeholders" && std::string_view(argv[1]) != "gl-boundaries" && std::string_view(argv[1]) != "gl-buffers" && std::string_view(argv[1]) != "ui-hierarchy" && std::string_view(argv[1]) != "ui-inspector" && std::string_view(argv[1]) != "ui-files" && std::string_view(argv[1]) != "ui-viewport" && std::string_view(argv[1]) != "ui-exit" && std::string_view(argv[1]) != "ui-escape"))) {
+        std::cerr << "Usage: Regression.exe [scene-hooks|editor-issue-12|camera-inverse|renderer-batches|editor-issue-15|entity-tags|editor-issue-16|viewport-pixels|editor-issue-17|minimize-restore|editor-issue-18|layer-partition|typed-events|event-names|font-atlas|atlas-placeholders|gl-boundaries|gl-buffers|ui-hierarchy|ui-inspector|ui-files|ui-viewport|ui-exit|ui-escape]\n";
         return 2;
     }
     try {
@@ -164,15 +164,24 @@ int main(int argc, char** argv) {
             if (argc == 1 || std::string_view(argv[1]) == "editor-issue-16")
                 std::cout << "PASS: editor-issue-16\n";
         }
-        if (std::string_view(argv[1] ? argv[1] : "") == "editor-ui") {
-            Rubber::checkEditorUi(application);
-            std::cout << "PASS: editor-ui\n";
-            return 0;
-        }
-        if (std::string_view(argv[1] ? argv[1] : "") == "editor-ui-escape") {
-            Rubber::checkEditorUiEscape(application);
-            std::cout << "PASS: editor-ui-escape\n";
-            return 0;
+        struct UiDrive {
+            const char* name;
+            void (*check)(Rubber::Application&);
+        };
+        const UiDrive uiDrives[] = {
+            {"ui-hierarchy", Rubber::UiScript::checkHierarchy},
+            {"ui-inspector", Rubber::UiScript::checkInspector},
+            {"ui-files", Rubber::UiScript::checkFiles},
+            {"ui-viewport", Rubber::UiScript::checkViewPort},
+            {"ui-exit", Rubber::UiScript::checkExit},
+            {"ui-escape", Rubber::UiScript::checkEscape},
+        };
+        for (const auto& drive : uiDrives) {
+            if (std::string_view(argv[1] ? argv[1] : "") == drive.name) {
+                drive.check(application);
+                std::cout << "PASS: " << drive.name << "\n";
+                return 0;
+            }
         }
         if (argc == 1 || std::string_view(argv[1]) == "editor-issue-12") {
             Rubber::checkEditorIssue12(application);

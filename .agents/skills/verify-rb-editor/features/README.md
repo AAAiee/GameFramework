@@ -26,7 +26,7 @@ This directory is the maintained source for verifying the user-facing behavior o
 - Live Editor proof adds `editor.png` from `capture`, with the window title `Editor` visible.
 - Mutation proof includes a second read of stored state. A `.rubber` save is proven by opening that file and matching Tag, Transform, Sprite color, Camera, and Visibility fields.
 - Record the feature id and entry point used with every artifact.
-- A catalogued Editor control is driven by `drive editor-ui` or `drive editor-ui-escape`. Do not report `verified-unreachable` for those paths.
+- A catalogued Editor control is driven by `drive editor-ui`, or by `drive ui-exit` / `drive ui-escape` for the two paths that close the app. Do not report `verified-unreachable` for those paths.
 - Do not report a skipped entry point as verified through a different path.
 
 ## Feature entry contract
