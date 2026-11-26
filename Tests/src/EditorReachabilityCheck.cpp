@@ -12,63 +12,15 @@
 #include <GLFW/glfw3.h>
 #include <imgui.h>
 #include <imgui_internal.h>
-#include <windows.h>
-#include <atomic>
-#include <thread>
 #include <stdexcept>
 #include <sstream>
 #include <cmath>
-#include <chrono>
 
 namespace Rubber {
     namespace {
         void require(bool condition, const std::string& message) {
             if (!condition) throw std::runtime_error(message);
         }
-
-        class CancelDialogSession {
-        public:
-            CancelDialogSession() {
-                const HDESK desktop = GetThreadDesktop(GetCurrentThreadId());
-                m_Thread = std::thread([this, desktop] {
-                    if (!SetThreadDesktop(desktop)) return;
-                    while (!m_Finished.load()) {
-                        EnumDesktopWindows(desktop, collect, reinterpret_cast<LPARAM>(this));
-                        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-                    }
-                });
-            }
-
-            ~CancelDialogSession() {
-                m_Finished.store(true);
-                if (m_Thread.joinable()) m_Thread.join();
-            }
-
-            bool sawDialog() const { return m_Saw.load(); }
-
-        private:
-            static BOOL CALLBACK collect(HWND window, LPARAM context) {
-                auto* self = reinterpret_cast<CancelDialogSession*>(context);
-                DWORD process = 0;
-                GetWindowThreadProcessId(window, &process);
-                if (process != GetCurrentProcessId()) return TRUE;
-                wchar_t name[32]{};
-                GetClassNameW(window, name, 32);
-                if (!IsWindowVisible(window) || std::wstring_view(name) != L"#32770") return TRUE;
-                self->m_Saw.store(true);
-                if (HWND button = GetDlgItem(window, IDCANCEL)) {
-                    PostMessageW(window, WM_COMMAND, MAKEWPARAM(IDCANCEL, BN_CLICKED),
-                        reinterpret_cast<LPARAM>(button));
-                } else {
-                    PostMessageW(window, WM_CLOSE, 0, 0);
-                }
-                return TRUE;
-            }
-
-            std::atomic<bool> m_Finished{false};
-            std::atomic<bool> m_Saw{false};
-            std::thread m_Thread;
-        };
 
         std::size_t taggedCount(Scene& scene) {
             std::size_t count = 0;
@@ -142,9 +94,9 @@ namespace Rubber {
             require(m_Frames < 2400, "Editor UI reachability timed out");
             m_Driver.tick();
             if (m_Driver.busy()) return;
-            if (m_Dialog) {
-                require(m_Dialog->sawDialog(), "File menu did not open a native dialog");
-                m_Dialog.reset();
+            if (m_Driver.dialogCancelPending()) {
+                require(m_Driver.sawDialog(), "File menu did not open a native dialog");
+                m_Driver.endDialogCancel();
             }
             advance();
         }
@@ -192,9 +144,8 @@ namespace Rubber {
         }
 
         void chordWithDialog(int key) {
-            InputOverlay::press(RB_KEY_LEFT_CONTROL);
-            m_Dialog = std::make_unique<CancelDialogSession>();
-            Application::getEventManager()->enqueue(KeyPressedEvent(key, 0));
+            m_Driver.beginDialogCancel();
+            m_Driver.chord(key);
             m_Driver.waitFrames(2);
         }
 
@@ -472,18 +423,16 @@ namespace Rubber {
                     return;
                 case Step::CreateThenChord:
                     require(taggedCount(*m_ActiveScene) == 1, "Create Entity after New failed");
-                    InputOverlay::press(RB_KEY_LEFT_CONTROL);
-                    Application::getEventManager()->enqueue(KeyPressedEvent(RB_KEY_N, 0));
+                    m_Driver.chord(RB_KEY_N);
                     m_Driver.waitFrames(2);
                     m_Step = Step::ChordNew;
                     return;
                 case Step::ChordNew:
-                    InputOverlay::clear();
                     require(taggedCount(*m_ActiveScene) == 0, "Ctrl+N did not clear the scene");
                     std::cout << "OBSERVED: Ctrl+N overlay cleared the scene through shortcutCallBack\n";
                     m_Driver.click("File");
                     m_Driver.waitFrames(1);
-                    m_Dialog = std::make_unique<CancelDialogSession>();
+                    m_Driver.beginDialogCancel();
                     m_Driver.click("Open...");
                     m_Step = Step::FileOpenCancel;
                     return;
@@ -491,7 +440,7 @@ namespace Rubber {
                     std::cout << "OBSERVED: File / Open... opened a native dialog\n";
                     m_Driver.click("File");
                     m_Driver.waitFrames(1);
-                    m_Dialog = std::make_unique<CancelDialogSession>();
+                    m_Driver.beginDialogCancel();
                     m_Driver.click("Save As...");
                     m_Step = Step::FileSaveAsCancel;
                     return;
@@ -501,13 +450,11 @@ namespace Rubber {
                     m_Step = Step::ChordOpen;
                     return;
                 case Step::ChordOpen:
-                    InputOverlay::clear();
                     std::cout << "OBSERVED: Ctrl+O overlay opened a native dialog\n";
                     chordWithDialog(RB_KEY_S);
                     m_Step = Step::ChordSave;
                     return;
                 case Step::ChordSave: {
-                    InputOverlay::clear();
                     std::cout << "OBSERVED: Ctrl+S overlay opened a native dialog\n";
                     const auto splitter = verticalSplitterBesideViewPort();
                     if (!splitter)
@@ -547,7 +494,6 @@ namespace Rubber {
         }
 
         EditorDriver m_Driver;
-        std::unique_ptr<CancelDialogSession> m_Dialog;
         glm::vec2 m_BeforeViewport{};
         glm::vec4 m_BeforeColor{1.0f};
         float m_BeforeY = 0.0f;
