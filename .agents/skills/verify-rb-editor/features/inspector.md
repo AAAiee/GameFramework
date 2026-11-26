@@ -36,7 +36,7 @@ Preconditions:
 ## Gotchas
 
 - `drive inspector` still uses selector `editor-issue-16` for a shorter Camera/Visibility path. The full inspector catalog, including Projection, Size, FOVY, Color Picker, and Remove Component, is `drive ui-inspector`. Do not mark those verified from `entity.addComponent` in another fixture.
-- Add Component menu order in source is Camera, Sprite Renderer, Transform, Visibility. The current fixture clicks rows 0 and 3 only.
+- Add Component menu order in source is Camera, Sprite Renderer, Transform, Visibility. `drive inspector` opens only the Camera and Visibility rows. `drive ui-inspector` clicks each component by label.
 - Choosing an already-present component closes the popup and does not add a second copy.
 - Rotation in the Transform editor is shown in degrees and stored in radians.
 - `EditorSmoke` adding a Transform through the component API is not this feature.

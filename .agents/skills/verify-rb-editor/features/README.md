@@ -16,7 +16,7 @@ This directory is the maintained source for verifying the user-facing behavior o
 - Start every recipe from the baseline state unless its preconditions say otherwise.
 - Run unattended journeys through `rb-verify.ps1 drive`.
 - Treat every command as literal. Keep feature ids and flags unchanged.
-- Prefer the ImGui window and menu names listed in each feature file.
+- Use the widget names in `Tests\src\UiCatalog.h`. Feature files name the ones each journey reaches.
 - Restore nothing in the build tree. Isolated Editor copies die in `cleanup`. Regression work trees copied into `evidence\` stay there.
 
 ## Proof and skip reporting
@@ -26,7 +26,8 @@ This directory is the maintained source for verifying the user-facing behavior o
 - Live Editor proof adds `editor.png` from `capture`, with the window title `Editor` visible.
 - Mutation proof includes a second read of stored state. A `.rubber` save is proven by opening that file and matching Tag, Transform, Sprite color, Camera, and Visibility fields.
 - Record the feature id and entry point used with every artifact.
-- A catalogued Editor control is driven by `drive editor-ui`, or by `drive ui-exit` / `drive ui-escape` for the two paths that close the app. Do not report `verified-unreachable` for those paths.
+- A catalogued Editor control is driven by `drive editor-ui`, except the `File` / `Exit` item, which is `drive ui-exit`. Escape is `drive ui-escape`. Do not report `verified-unreachable` for a catalog id.
+- Hosted CI runs `Tests/Windows/scan-ui-catalog.ps1` and `UnitTests`. Neither runs live Editor clicks.
 - Do not report a skipped entry point as verified through a different path.
 
 ## Feature entry contract
