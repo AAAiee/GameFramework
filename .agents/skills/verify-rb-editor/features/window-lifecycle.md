@@ -25,7 +25,7 @@ Preconditions:
 - **Minimize and restore.** Drive the production window through native minimize and restore. Run `pwsh -NoProfile -File .agents/skills/verify-rb-editor/scripts/rb-verify.ps1 drive window-lifecycle`. Exit code `0`. `evidence\summary.txt` contains `PASS: editor-issue-18`, an `OBSERVED: minimized` line with `fixed updates=0`, and an `OBSERVED: restored` line.
 - **File / Exit.** Run `pwsh -NoProfile -File .agents/skills/verify-rb-editor/scripts/rb-verify.ps1 drive ui-exit`. Exit code `0`. `evidence\summary.txt` contains `PASS: ui-exit` and `OBSERVED: File / Exit closed the editor`.
 - **Escape.** Run `pwsh -NoProfile -File .agents/skills/verify-rb-editor/scripts/rb-verify.ps1 drive ui-escape`. Exit code `0`. `evidence\summary.txt` contains `PASS: ui-escape` and `OBSERVED: Escape posted WindowCloseEvent and closed the editor`.
-- **Proof.** Keep `evidence\stdout.log` and `summary.txt`. A screenshot of a restored window without that marker is not enough.
+- **Proof.** Keep `evidence\window-lifecycle\stdout.log` and `summary.txt`. A screenshot of a restored window without that marker is not enough.
 
 ## Gotchas
 

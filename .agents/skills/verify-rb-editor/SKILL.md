@@ -62,7 +62,7 @@ Refuse to drive when doctor prints `FAIL`. Do not attach to an `Editor.exe` whos
 
 ## Drive
 
-Unattended proof uses `Regression.exe` through `rb-verify.ps1 drive`. The first-party fixtures compile production `EditorLayer`, `SceneHierachyPanel`, and `FontManager`, then inject real ImGui mouse, key, and text events or drive the native Win32 file dialogs. They run on the private desktop. They are the existing driver. ImGui does not expose UI Automation. There is no click API on standalone `Editor.exe`.
+Unattended proof uses `Regression.exe` through `rb-verify.ps1 drive`. The first-party fixtures compile production `EditorLayer`, `SceneHierachyPanel`, and `FontManager`. `EditorDriver` clicks, drags, types, and chords the labeled items at their real positions, and a Win32 session answers the native file dialogs. They run on the private desktop. ImGui does not expose UI Automation. There is no click API on standalone `Editor.exe`.
 
 ```powershell
 pwsh -NoProfile -File .agents/skills/verify-rb-editor/scripts/rb-verify.ps1 drive ui-hierarchy
@@ -71,13 +71,16 @@ pwsh -NoProfile -File .agents/skills/verify-rb-editor/scripts/rb-verify.ps1 driv
 pwsh -NoProfile -File .agents/skills/verify-rb-editor/scripts/rb-verify.ps1 drive ui-viewport
 pwsh -NoProfile -File .agents/skills/verify-rb-editor/scripts/rb-verify.ps1 drive ui-exit
 pwsh -NoProfile -File .agents/skills/verify-rb-editor/scripts/rb-verify.ps1 drive ui-escape
+pwsh -NoProfile -File .agents/skills/verify-rb-editor/scripts/rb-verify.ps1 drive entity-tags
 ```
 
 `drive editor-ui` runs `ui-hierarchy`, `ui-inspector`, `ui-files`, and `ui-viewport` in that order, one process each. `ui-exit` and `ui-escape` close the editor, so run each as its own drive. A full pass is `drive editor-ui`, then `drive ui-exit`, then `drive ui-escape`.
 
+`drive entity-tags` selects a hierarchy row, expands it, and types empty, percent, UTF-8, 255-byte, 256-byte, and 8192-byte tags through the production Tag input. It then deselects, reselects, deletes the row, and adds Camera and Visibility through `Add Component`. `scene-hierarchy`, `inspector`, and `entity-tags` are aliases of one Regression check. One run of any alias is enough for that check.
+
 `rb-verify.ps1` owns selector names, timeouts, and `PASS:` markers. One Regression drive at a time. A second `drive` while `.drive.lock` holds a live PID is refused.
 
-Read `features/` before a run and drive every entry point that feature file lists. A pass through one convenient selector does not cover a listed entry point you skipped. A feature file can name another selector for a case the six above do not cover.
+Read `features/` before a run and drive every entry point that feature file lists. A pass through one convenient selector does not cover a listed entry point you skipped. A feature file can name another selector for a case the drives above do not cover.
 
 `Ctrl+N` / `Ctrl+O` / `Ctrl+S` poll `Input::isKeyPressed` on the real window. Synthetic ImGui key events do not fire those shortcuts. Escape posts a window-close event and exits the editor.
 
@@ -90,7 +93,7 @@ Read `features/` before a run and drive every entry point that feature file list
 Completeness has two checks.
 
 1. Hosted. `Tests/Windows/scan-ui-catalog.ps1` compares `Editor/src` widget literals with `kUiCatalog` in both directions. A label missing from the catalog fails, and a catalog id with no source literal fails. `Orthographic` and `Perspective` come from `ImGui::Selectable(projectionTypeName[i])`, and `ItemProbe` tags `##Splitter` from the dock geometry, so those three ids skip the literal rule.
-2. Display host. `Tests/Windows/check-ui-coverage.ps1 <evidence>` unions the `DRIVEN: ` lines from the evidence logs. It fails for a catalog id that is neither driven nor a window seen in the item dump.
+2. Display host. Run the full pass with one `-RunId` so all evidence lands in one run folder. `Tests/Windows/check-ui-coverage.ps1 <run-id>\evidence` unions the `DRIVEN: ` lines from those logs. It fails for a catalog id that is neither driven nor a window seen in the item dump. `File` / `Exit` is driven by `drive ui-exit`, so the union needs that run too.
 
 `verified-unreachable` is not a legal status for a catalog id. A catalogued control that the driver cannot reach is a failing completeness check, not a skip. Do not substitute `Scene::createEntity` or `saveSceneTo` for a menu the catalog claims.
 
@@ -100,7 +103,7 @@ Hosted CI runs `scan-ui-catalog.ps1` and `UnitTests` on `windows-latest`. Live c
 
 Proof artifacts go under `Binaries\Verify\<run-id>\evidence\`. That directory is inside gitignored `Binaries/`. Cleanup deletes `instance\` and never deletes `evidence\`.
 
-A `drive` writes `stdout.log`, `stderr.log`, and `summary.txt` there. `drive editor-ui` writes one subdirectory for each selector and one shared `summary.txt` at the top. `summary.txt` records run id, HEAD, selector, exit code, and every `PASS:`, `FAIL:`, `OBSERVED:`, and `DIALOG` line. Native-dialog work trees matching `issue-*-work-*` are copied next to those logs. `launch-editor` copies `editor.stdout.log` into evidence. `capture` writes `editor.png` of the GLFW window after restoring and foregrounding it. `capture` uses the screen pixels of that window rectangle, so overlapping desktop windows can appear in the PNG. Assert the title `Editor` and the panel names, not a clean desktop.
+A `drive` writes one subdirectory per feature under `evidence\`, holding `stdout.log` and `stderr.log`, and appends to the shared `summary.txt` at the evidence root. Reusing a `-RunId` across a full pass keeps every drive's logs and summary lines in one run folder. `summary.txt` records run id, HEAD, selector, exit code, and every `PASS:`, `FAIL:`, `OBSERVED:`, and `DIALOG` line. Native-dialog work trees matching `issue-*-work-*` are copied next to those logs. `launch-editor` copies `editor.stdout.log` into evidence. `capture` writes `editor.png` of the GLFW window after restoring and foregrounding it. `capture` uses the screen pixels of that window rectangle, so overlapping desktop windows can appear in the PNG. Assert the title `Editor` and the panel names, not a clean desktop.
 
 Proof standards:
 
@@ -138,7 +141,7 @@ Pass `-Configuration Release` when proving a Release build. Pass `-RunId` to reu
 
 ## Isolation
 
-Regression windows live on a private desktop. They can run while the user has another Editor open. Do not run two `drive` invocations at once. They share one Regression output directory (`imgui.ini`, `issue-*-work-*`).
+Regression windows live on a private desktop. They can run while the user has another Editor open. Do not run two `drive` invocations at once. They share one Regression output directory. `rb-verify.ps1` restores the committed `Editor/imgui.ini` before each child, so every drive starts from the docked layout. A stale minimized or floating layout breaks the next matrix run at `##Splitter`.
 
 `launch-editor` uses a copied work directory so it does not rewrite the build tree's `imgui.ini`. Two isolated copies may run if each has its own run id. Refuse a second launch into a run whose PID is still alive.
 

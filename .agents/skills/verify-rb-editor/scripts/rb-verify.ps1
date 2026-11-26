@@ -425,6 +425,7 @@ function Invoke-DriveOne {
     try {
         Add-Content -LiteralPath $Summary -Value "selector=$selector"
         Add-Content -LiteralPath $Summary -Value "marker=$($Spec['Marker'])"
+        Copy-Item -LiteralPath (Join-Path $Repo 'Editor\imgui.ini') -Destination (Join-Path $WorkDir 'imgui.ini') -Force
         $proc = Start-Process -FilePath $Regression -ArgumentList $selector `
             -WorkingDirectory $WorkDir -RedirectStandardOutput $stdout `
             -RedirectStandardError $stderr -WindowStyle Hidden -PassThru
@@ -511,7 +512,8 @@ function Invoke-Drive {
         if ($spec.ContainsKey('Matrix')) {
             $header += "matrix=$($spec['Matrix'] -join ',')"
         }
-        $header | Set-Content -LiteralPath $summary -Encoding utf8
+        if (Test-Path -LiteralPath $summary) { Add-Content -LiteralPath $summary -Value '' }
+        $header | Add-Content -LiteralPath $summary -Encoding utf8
         if ($spec.ContainsKey('Matrix')) {
             foreach ($child in $spec['Matrix']) {
                 $childSpec = Resolve-DriveSpec $child
@@ -522,8 +524,9 @@ function Invoke-Drive {
             }
             Write-Output "DRIVE_OK run_id=$RunId feature=$Feature matrix=$($spec['Matrix'] -join ',')"
         } else {
+            $featureEvidence = Join-Path $paths.Evidence $Feature
             Invoke-DriveOne -Repo $Repo -Configuration $Configuration -RunId $RunId -Feature $Feature `
-                -Spec $spec -Paths $paths -Evidence $paths.Evidence -Summary $summary `
+                -Spec $spec -Paths $paths -Evidence $featureEvidence -Summary $summary `
                 -Regression $regression -WorkDir $workDir
         }
         Write-Output "EVIDENCE=$($paths.Evidence)"

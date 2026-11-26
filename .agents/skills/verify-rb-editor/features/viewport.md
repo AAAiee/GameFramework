@@ -26,7 +26,7 @@ Preconditions:
 - **Live splitter drag and Setting stats.** Run `pwsh -NoProfile -File .agents/skills/verify-rb-editor/scripts/rb-verify.ps1 drive ui-viewport`. Exit code `0`. `evidence\summary.txt` contains `PASS: ui-viewport`, `OBSERVED: ViewPort splitter drag changed panel size`, and `OBSERVED: Setting window submitted DrawCount stats`.
 - **Pixel sizes and camera delivery.** Drive production EditorLayer, framebuffer attachments, and WindowSystem. Run `pwsh -NoProfile -File .agents/skills/verify-rb-editor/scripts/rb-verify.ps1 drive viewport`. Exit code `0`. `evidence\summary.txt` contains `PASS: editor-issue-17` plus `OBSERVED: stable 800.5x600.5 panel retained framebuffer and attachments at 800x600`, `OBSERVED: zero, negative and subpixel-to-zero panels preserved usable framebuffer and camera`, and `OBSERVED: changed pixels reached framebuffer, events and cameras; dockspace restored style`.
 - **New/Open at awkward sizes.** The same drive opens a serialized camera through the production Open dialog at fractional and zero extents. `stdout.log` records those `OBSERVED:` dialog lines.
-- **Proof.** Keep `evidence\stdout.log` and `summary.txt`. A green `Setting` panel screenshot without those markers is not viewport proof.
+- **Proof.** Keep `evidence\viewport\stdout.log` and `summary.txt`. A green `Setting` panel screenshot without those markers is not viewport proof.
 
 ## Gotchas
 
