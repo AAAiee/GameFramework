@@ -17,6 +17,7 @@ This directory is the maintained source for verifying the user-facing behavior o
 - Run unattended journeys through `rb-verify.ps1 drive`.
 - Treat every command as literal. Keep feature ids and flags unchanged.
 - Use the widget names in `Tests\src\UiCatalog.h`. Feature files name the ones each journey reaches.
+- `scene-hierarchy`, `inspector`, and `entity-tags` are aliases of one Regression check. Drive any one of them once. The aliases print the same `OBSERVED:` lines.
 - Restore nothing in the build tree. Isolated Editor copies die in `cleanup`. Regression work trees copied into `evidence\` stay there.
 
 ## Proof and skip reporting
@@ -26,7 +27,7 @@ This directory is the maintained source for verifying the user-facing behavior o
 - Live Editor proof adds `editor.png` from `capture`, with the window title `Editor` visible.
 - Mutation proof includes a second read of stored state. A `.rubber` save is proven by opening that file and matching Tag, Transform, Sprite color, Camera, and Visibility fields.
 - Record the feature id and entry point used with every artifact.
-- A catalogued Editor control is driven by `drive editor-ui`, except the `File` / `Exit` item, which is `drive ui-exit`. Escape is `drive ui-escape`. Do not report `verified-unreachable` for a catalog id.
+- A catalogued Editor control is driven by `drive editor-ui`, except the `File` / `Exit` item, which is `drive ui-exit`. Escape is `drive ui-escape`. Run all three with one `-RunId`, then pass that run folder's `evidence\` to `Tests/Windows/check-ui-coverage.ps1`. Do not report `verified-unreachable` for a catalog id.
 - Hosted CI runs `Tests/Windows/scan-ui-catalog.ps1` and `UnitTests`. Neither runs live Editor clicks.
 - Do not report a skipped entry point as verified through a different path.
 
@@ -43,7 +44,7 @@ Keep implementation details out of the map. Name only user paths, stable handles
 
 ## Features
 
-- [Scene hierarchy](./scene-hierarchy.md) covers entity create, select, rename, deselect, and delete in Scene Hierarchy.
+- [Scene hierarchy](./scene-hierarchy.md) covers entity create, select, rename, deselect, and delete in Scene Hierarchy. The `entity-tags` alias types literal, percent, UTF-8, and 8192-byte tags through the production Tag input.
 - [Inspector](./inspector.md) covers Tag, Add Component, Camera Primary, Visibility, Transform, and Sprite color in Property Channel.
 - [Scene files](./scene-files.md) covers File New, Open, Save As, cancel, overwrite, and Unicode `.rubber` round trips.
 - [Viewport](./viewport.md) covers ViewPort framebuffer resize, camera aspect, and New/Open at usable pixel sizes.
