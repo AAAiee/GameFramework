@@ -4,6 +4,7 @@
 
 #include <imgui.h>
 #include <imgui_internal.h>
+#include <iostream>
 #include <ostream>
 #include <stdexcept>
 #include <sstream>
@@ -12,6 +13,12 @@ namespace Rubber {
     namespace {
         void require(bool condition, const std::string& message) {
             if (!condition) throw std::runtime_error(message);
+        }
+
+        void reportDriven(const std::string& path) {
+            const std::string line = "DRIVEN: " + path + "\n";
+            std::cout.write(line.data(), static_cast<std::streamsize>(line.size()));
+            std::cout.flush();
         }
     }
 
@@ -113,6 +120,8 @@ namespace Rubber {
                 const ImVec2 point = action.kind == Kind::Click
                     ? ItemProbe::center(requireItem(action))
                     : action.point;
+                if (action.kind == Kind::Click && action.phase == 0)
+                    reportDriven(action.path);
                 if (action.phase == 0) { mouseMove(point); action.phase = 1; return; }
                 if (action.phase == 1) { mouseButton(action.button, true); action.phase = 2; return; }
                 if (action.phase == 2) { mouseButton(action.button, false); action.phase = 3; return; }
@@ -131,6 +140,8 @@ namespace Rubber {
             case Kind::DragPoint: {
                 ImVec2 start = action.point;
                 if (action.kind == Kind::Drag) start = ItemProbe::center(requireItem(action));
+                if (action.kind == Kind::Drag && action.phase == 0)
+                    reportDriven(action.path);
                 const ImVec2 end(start.x + action.delta.x, start.y + action.delta.y);
                 if (action.phase == 0) { mouseMove(start); action.phase = 1; return; }
                 if (action.phase == 1) { mouseButton(0, true); action.phase = 2; return; }

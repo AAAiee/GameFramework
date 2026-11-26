@@ -60,13 +60,22 @@ no-op there.
 
 ## Completeness gate
 
-1. Static: `Tests/Windows/scan-ui-catalog.ps1` greps `Editor/src` widget
-   literals against `UiCatalog.h` and fails on a missing or extra label.
+1. Static: `Tests/Windows/scan-ui-catalog.ps1` checks `Editor/src` in both
+   directions. A widget label missing from `kUiCatalog` fails, and a catalog id
+   with no `ImGui::` or `EditorUi::` literal fails. `Orthographic` and
+   `Perspective` come from `ImGui::Selectable(projectionTypeName[i])`, and
+   `ItemProbe` tags `##Splitter` from the dock geometry, so those three ids skip
+   the literal rule. Hosted CI runs the scan in its own job with a 5 s cap.
 2. Runtime: after opening each menu/popup, `ItemProbe` must contain that path.
-3. Journey: each catalog entry is driven by `Regression.exe editor-ui` or
+3. Display host: `Tests/Windows/check-ui-coverage.ps1 <evidence>` unions
+   `DRIVEN: ` lines from the evidence logs and fails for a catalog id that is
+   neither driven nor a window seen in the item dump. It is not a hosted job.
+   Ids the current journey does not reach by path print as `PENDING`.
+4. Journey: each catalog entry is driven by `Regression.exe editor-ui` or
    `editor-ui-escape`, with a scene, dialog, or window-close observation.
-4. `verify-rb-editor` feature files name those selectors. `verified-unreachable`
+   `verify-rb-editor` feature files name those selectors. `verified-unreachable`
    is not a legal status for a catalogued entry.
+5. Hosted CI runs `UnitTests` on every push and pull request.
 
 `IMGUI_ENABLE_TEST_ENGINE` is a Premake define on every target that compiles
 or includes Dear ImGui, so the imgui submodule stays clean.
