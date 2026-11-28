@@ -20,8 +20,10 @@ Hosted `windows-latest` has no WGL/OpenGL driver (measured:
 [regression-results.tsv](../../.audit/hosted-ci-probe/regression-results.tsv),
 `gl-buffers` exit `-2147483645`, run
 [45023232349](https://github.com/AAAiee/GameFramework/actions/runs/45023232349)).
-Anything that constructs `Application` dies there, so hosted CI runs UnitTests
-and only compiles the smokes.
+Anything that constructs `Application` dies there, so hosted CI runs UnitTests,
+the UI catalog scan, and the layering proof. EngineSmoke and EditorSmoke run on
+a display host through `Tests/Windows/run-smokes.ps1`. Editor acceptance on that
+host is `verify-rb-editor`.
 
 ## Production seams the tests rely on
 
@@ -51,8 +53,8 @@ drivers; the host Regression fixtures keep covering real dialogs.
 
 | Job | Runs-on | Work |
 | --- | --- | --- |
+| `ui-catalog` | `windows-latest` | `Tests/Windows/scan-ui-catalog.ps1`; no MSBuild |
 | `unittests` | `windows-latest` | build and run `UnitTests` in Debug and Release via `Tests/Windows/hosted-ci-probe.ps1 -Stage unit`; exit code is the oracle |
-| `smokes-compile` | `windows-latest` | compile-only Debug build of both smokes; never runs them |
 | `layering-proof` | `windows-latest` | `Tests/Windows/prove-layering.ps1` |
 
 The layering proof patches, rebuilds, runs, and restores:
