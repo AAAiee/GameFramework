@@ -10,7 +10,8 @@
 - `EngineSmoke` and `EditorSmoke` (console apps that construct the real
   `Application`, so they need a display/GL host): on such a host run
   `Tests\Windows\run-smokes.ps1`, which builds and runs both and fails on any
-  nonzero exit. Hosted CI only compiles them.
+  nonzero exit. Hosted CI does not compile or run them. Editor UI acceptance is
+  `verify-rb-editor` on a display host.
 - What each layer covers, the CI matrix, and the known gaps are explained in
   [docs/testing/baseline-layering.md](../docs/testing/baseline-layering.md).
 
